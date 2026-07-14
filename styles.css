@@ -88,9 +88,14 @@ body {
 .hdr-avatar {
   width: 44px; height: 44px;
   border-radius: 50%;
-  background: #f0f0f0;
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  font-size: 24px;
+  position: relative;
+  top: 3px;
+}
+.hdr-avatar-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
 }
 [data-theme="dark"] .hdr-avatar { background: #2c2c2e; }
 .hdr-name {
@@ -468,20 +473,7 @@ body {
 }
 
 /* ---------- admin bubble highlight ---------- */
-.bubble.admin-bubble {
-  background: #fff3cd;
-  color: #1a1a1a;
-}
-[data-theme="dark"] .bubble.admin-bubble {
-  background: #3d3520;
-  color: #f5e6b8;
-}
-.bubble.tail.admin-bubble::before {
-  background: #fff3cd;
-}
-[data-theme="dark"] .bubble.tail.admin-bubble::before {
-  background: #3d3520;
-}
+/* admin bubbles use the same colors as their side (sent=blue, recv=gray) */
 
 /* ---------- edited message tag ---------- */
 .edited-tag {
@@ -681,15 +673,18 @@ emoji-picker {
 
 /* ---------- reply arrow outside bubble ---------- */
 .reply-arrow {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
   color: var(--meta);
   opacity: 0.7;
-  padding: 0;
-  margin-top: 8px;
-  line-height: 1;
+  transform: scaleY(-1);
+}
+.reply-arrow svg {
+  display: block;
 }
 .reply-arrow.arrow-left {
-  transform: scaleX(-1);
+  transform: scaleX(-1) scaleY(-1);
 }
 
 /* ---------- reply thread rows ---------- */

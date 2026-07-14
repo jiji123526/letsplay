@@ -19,7 +19,7 @@ const messagesEl = $("#messages");
 /* ---------- local state ---------- */
 let myUid   = null;
 let myNick  = "";          // derived from uid on sign-in (anonymous tag)
-let isAdmin = false;
+let isAdmin = localStorage.getItem("isAdmin") === "true";
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
@@ -185,7 +185,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       bubble.classList.add("has-reply-arrow");
       const arrow = document.createElement("span");
       arrow.className = "reply-arrow";
-      arrow.textContent = "↩";
+      arrow.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16"><path d="M14 12C14 8 11 5 7 5H3M3 5l3-3M3 5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
       // determine parent side for arrow direction
       let parentSide;
       if (parentMsg) {
@@ -582,10 +582,22 @@ function checkIfBlocked() {
     input.placeholder = "차단된 사용자입니다";
     sendBtn.hidden = true;
   } else {
-    input.placeholder = isAdmin ? "관리자 모드입니다" : "iMessage";
+    input.placeholder = isAdmin ? "말조심" : "싸우지마";
     toggleSend();
   }
   return blocked;
+}
+
+/* rate limiter: max 5 messages per 10 seconds (non-admin only) */
+const RATE_LIMIT = 5;
+const RATE_WINDOW = 10000;
+let sendTimestamps = [];
+
+function isRateLimited() {
+  if (isAdmin) return false;
+  const now = Date.now();
+  sendTimestamps = sendTimestamps.filter((t) => now - t < RATE_WINDOW);
+  return sendTimestamps.length >= RATE_LIMIT;
 }
 
 async function send() {
@@ -593,6 +605,10 @@ async function send() {
   if (!text && !pendingPhoto || !myUid) return;
   if (checkIfBlocked()) {
     banner("차단되어 메시지를 보낼 수 없습니다");
+    return;
+  }
+  if (isRateLimited()) {
+    banner("메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해주세요.");
     return;
   }
   input.value = "";
@@ -603,7 +619,10 @@ async function send() {
   if (pendingPhoto) { msgData.image = pendingPhoto; pendingPhoto = null; removePhotoPreview(); }
   if (replyingTo) { msgData.replyTo = replyingTo.id; }
   clearReply();
-  try { await sendMessage(msgData); }
+  try {
+    await sendMessage(msgData);
+    sendTimestamps.push(Date.now());
+  }
   catch (e) { console.error("send failed", e); banner("전송 실패"); }
 }
 
@@ -698,7 +717,7 @@ function compressImage(file, maxWidth, quality) {
    ============================================================ */
 function refilterMessages() {
   if (!isAdmin) {
-    messages = allMessages.filter((m) => !blockedUids.has(m.uid) && !m.report);
+    messages = allMessages.filter((m) => !m.report);
   } else {
     messages = allMessages;
   }
@@ -718,6 +737,7 @@ function refilterMessages() {
       if (isAdmin) {
         // toggle off admin
         isAdmin = false;
+        localStorage.setItem("isAdmin", "false");
         checkIfBlocked();
         refilterMessages();
         render();
@@ -727,6 +747,7 @@ function refilterMessages() {
         const pass = prompt("관리자 비밀번호:");
         if (pass === ADMIN_PASSCODE) {
           isAdmin = true;
+          localStorage.setItem("isAdmin", "true");
           checkIfBlocked();
           refilterMessages();
           render();
@@ -798,8 +819,7 @@ function showBlockedPanel() {
    Admin mode toggled by triple-clicking the header avatar.
    ============================================================ */
 function showEntryGate() {
-  // no gate — start directly
-  isAdmin = false;
+  // no gate — start directly, isAdmin restored from localStorage
   startChat();
 }
 
@@ -809,13 +829,12 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
-  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); render(); });
+  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
-    // filter out blocked users' messages for non-admin viewers
     // filter out report messages for non-admin viewers
     if (!isAdmin) {
-      messages = list.filter((m) => !blockedUids.has(m.uid) && !m.report);
+      messages = list.filter((m) => !m.report);
     } else {
       messages = list;
     }
