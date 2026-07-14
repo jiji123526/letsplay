@@ -24,8 +24,16 @@ if (USE_MOCK) {
   impl = await import("./firebase-backend.js");
 }
 
-export const initAuth      = impl.initAuth;
-export const subscribe     = impl.subscribe;
-export const sendMessage   = impl.sendMessage;
-export const removeMessage = impl.removeMessage;
-export const IS_MOCK       = USE_MOCK;
+export const initAuth           = impl.initAuth;
+export const subscribe          = impl.subscribe;
+export const sendMessage        = impl.sendMessage;
+export const removeMessage      = impl.removeMessage;
+export const softDeleteMessage  = impl.softDeleteMessage;
+export const editMessage        = impl.editMessage;
+export const addReaction        = impl.addReaction;
+export const removeReaction     = impl.removeReaction;
+export const blockUser          = impl.blockUser;
+export const unblockUser        = impl.unblockUser;
+export const getBlockedUsers    = impl.getBlockedUsers;
+export const subscribeBlocked   = impl.subscribeBlocked;
+export const IS_MOCK            = USE_MOCK;

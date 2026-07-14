@@ -9,8 +9,8 @@ import {
   getAuth, signInAnonymously, onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, addDoc, deleteDoc, doc,
-  onSnapshot, orderBy, query, serverTimestamp, limit,
+  getFirestore, collection, addDoc, deleteDoc, doc, updateDoc,
+  onSnapshot, orderBy, query, serverTimestamp, limit, getDocs,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { firebaseConfig } from "./firebase-config.js";
@@ -40,10 +40,79 @@ export function subscribe(cb) {
   });
 }
 
-export async function sendMessage({ uid, nick, text, is_admin }) {
-  await addDoc(msgCol, { uid, nick, text, is_admin: !!is_admin, createdAt: serverTimestamp() });
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image }) {
+  const authUid = auth.currentUser.uid;
+  const data = { uid, authUid, nick, text, is_admin: !!is_admin, createdAt: serverTimestamp() };
+  if (replyTo) data.replyTo = replyTo;
+  if (report) { data.report = true; data.reportedMsgId = reportedMsgId || null; }
+  if (image) data.image = image;
+  await addDoc(msgCol, data);
 }
 
 export async function removeMessage(id) {
   await deleteDoc(doc(db, "messages", id));
+}
+
+export async function softDeleteMessage(id) {
+  await updateDoc(doc(db, "messages", id), { deleted: true, text: "" });
+}
+
+export async function editMessage(id, newText) {
+  await updateDoc(doc(db, "messages", id), { text: newText, edited: true });
+}
+
+export async function markReported(id, reported) {
+  await updateDoc(doc(db, "messages", id), { reported: !!reported });
+}
+
+export async function addReaction(id, emoji, uid) {
+  const key = `${uid}_${emoji.codePointAt(0).toString(16)}`;
+  const msgRef = doc(db, "messages", id);
+  const { getDoc: getDocSnap } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const snap = await getDocSnap(msgRef);
+  const reactions = snap.data()?.reactions || {};
+  if (reactions[key]) {
+    // toggle off
+    const { deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    await updateDoc(msgRef, { [`reactions.${key}`]: deleteField() });
+  } else {
+    await updateDoc(msgRef, { [`reactions.${key}`]: emoji });
+  }
+}
+
+export async function removeReaction(id, uid) {
+  // remove a specific reaction by key
+  const { deleteField } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  await updateDoc(doc(db, "messages", id), { [`reactions.${uid}`]: deleteField() });
+}
+
+/* ---- block list (stored in Firestore blocked collection) ---- */
+const blockedCol = collection(db, "blocked");
+let _blockedList = [];
+let _blockedListeners = new Set();
+
+// realtime subscription to blocked users
+onSnapshot(query(blockedCol), (snap) => {
+  _blockedList = snap.docs.map((d) => ({ uid: d.data().uid, reason: d.data().reason || "" }));
+  _blockedListeners.forEach((cb) => cb(_blockedList));
+});
+
+export function getBlockedUsers() {
+  return _blockedList;
+}
+
+export function subscribeBlocked(cb) {
+  _blockedListeners.add(cb);
+  cb(_blockedList);
+  return () => _blockedListeners.delete(cb);
+}
+
+export async function blockUser(uid, reason) {
+  await addDoc(blockedCol, { uid, reason: reason || "", blockedAt: serverTimestamp() });
+}
+
+export async function unblockUser(uid) {
+  const snap = await getDocs(query(blockedCol));
+  const docToDelete = snap.docs.find((d) => d.data().uid === uid);
+  if (docToDelete) await deleteDoc(doc(db, "blocked", docToDelete.id));
 }

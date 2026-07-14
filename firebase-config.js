@@ -13,16 +13,17 @@
 // are stored in your browser (localStorage) and a fake "other person"
 // replies so you can see both bubble styles. Flip to `false` once you
 // paste real keys below and want to go live.
-export const USE_MOCK = true;
+export const USE_MOCK = false;
 // -----------------------------------------------------------
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCjDPXcwiKHdzC5nbEwS7tRnY3xj9BlsZU",
+  authDomain: "playground-4a5b2.firebaseapp.com",
+  projectId: "playground-4a5b2",
+  storageBucket: "playground-4a5b2.firebasestorage.app",
+  messagingSenderId: "13988513328",
+  appId: "1:13988513328:web:cae8a378bd7ce958be8ff5",
+  measurementId: "G-2Q4R3040QX"
 };
 
 // Optional: set an admin passcode. Anyone entering this in "관리자 모드"

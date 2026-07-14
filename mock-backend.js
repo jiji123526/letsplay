@@ -55,9 +55,12 @@ export function subscribe(cb) {
   return () => listeners.delete(cb);
 }
 
-export async function sendMessage({ uid, nick, text, is_admin }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image }) {
   const list = load();
-  list.push({ id: id(), uid, nick, text, is_admin: !!is_admin, createdAt: new Date() });
+  const msg = { id: id(), uid, nick, text, is_admin: !!is_admin, replyTo: replyTo || null, createdAt: new Date() };
+  if (report) { msg.report = true; msg.reportedMsgId = reportedMsgId || null; }
+  if (image) { msg.image = image; }
+  list.push(msg);
   save(list);
   emit();
 
@@ -79,4 +82,93 @@ export async function sendMessage({ uid, nick, text, is_admin }) {
 export async function removeMessage(mid) {
   save(load().filter((m) => m.id !== mid));
   emit();
+}
+
+export async function softDeleteMessage(mid) {
+  const list = load();
+  const msg = list.find((m) => m.id === mid);
+  if (msg) { msg.deleted = true; msg.text = ""; }
+  save(list);
+  emit();
+}
+
+export async function editMessage(mid, newText) {
+  const list = load();
+  const msg = list.find((m) => m.id === mid);
+  if (msg) { msg.text = newText; msg.edited = true; }
+  save(list);
+  emit();
+}
+
+export async function markReported(mid, reported) {
+  const list = load();
+  const msg = list.find((m) => m.id === mid);
+  if (msg) { msg.reported = reported; }
+  save(list);
+  emit();
+}
+
+export async function addReaction(mid, emoji, uid) {
+  const list = load();
+  const msg = list.find((m) => m.id === mid);
+  if (msg) {
+    if (!msg.reactions) msg.reactions = {};
+    const key = `${uid}_${emoji}`;
+    if (msg.reactions[key]) {
+      // toggle off if same emoji already exists
+      delete msg.reactions[key];
+      if (Object.keys(msg.reactions).length === 0) delete msg.reactions;
+    } else {
+      msg.reactions[key] = emoji;
+    }
+  }
+  save(list);
+  emit();
+}
+
+export async function removeReaction(mid, uid) {
+  const list = load();
+  const msg = list.find((m) => m.id === mid);
+  if (msg && msg.reactions) {
+    // remove all reactions from this user
+    Object.keys(msg.reactions).forEach((key) => {
+      if (key.startsWith(`${uid}_`)) delete msg.reactions[key];
+    });
+    if (Object.keys(msg.reactions).length === 0) delete msg.reactions;
+  }
+  save(list);
+  emit();
+}
+
+/* ---- block list ---- */
+const BLOCK_KEY = "mock_blocked";
+
+function loadBlocked() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BLOCK_KEY) || "[]");
+    // support both old format (string[]) and new format ({uid, reason}[])
+    return raw.map((b) => typeof b === "string" ? { uid: b, reason: "" } : b);
+  } catch { return []; }
+}
+
+export function getBlockedUsers() {
+  return loadBlocked();
+}
+
+export function subscribeBlocked(cb) {
+  cb(loadBlocked());
+  window.addEventListener("storage", (e) => { if (e.key === BLOCK_KEY) cb(loadBlocked()); });
+}
+
+export async function blockUser(uid, reason) {
+  const list = loadBlocked();
+  if (!list.find((b) => b.uid === uid)) {
+    list.push({ uid, reason: reason || "" });
+    localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
+  }
+}
+
+export async function unblockUser(uid) {
+  const list = loadBlocked().filter((b) => b.uid !== uid);
+  localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
 }

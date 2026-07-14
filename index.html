@@ -12,14 +12,14 @@
     <!-- Conversation header -->
     <header class="chat-header">
       <button class="hdr-btn hdr-back" aria-label="Back">
-        <svg viewBox="0 0 12 20" width="12" height="20"><path d="M10 1L2 10l8 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="hdr-unread">6</span>
+        <svg viewBox="0 0 12 20" width="18" height="18"><path d="M10 1L2 10l8 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="hdr-contact">
-        <div class="hdr-name" id="hdrName">놀이터<svg viewBox="0 0 8 14" width="8" height="14"><path d="M1 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="hdr-avatar">🍋</div>
+        <div class="hdr-name">놀이터</div>
       </div>
-      <button class="hdr-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle light / dark">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.03-.92-.1-1.36A6 6 0 0 1 12.36 3.1 9.05 9.05 0 0 0 12 3z" fill="currentColor"/></svg>
+      <button class="hdr-btn hdr-menu" aria-label="Menu">
+        <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></svg>
       </button>
     </header>
 
@@ -28,24 +28,19 @@
 
     <!-- Composer -->
     <footer class="composer">
-      <button class="composer-icon" aria-label="Camera">
-        <svg viewBox="0 0 24 24" width="21" height="21"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z" fill="currentColor"/><path d="M9 4l-1.2 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.8L15 4H9z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      <button class="composer-plus" id="photoBtn" aria-label="Add photo">
+        <svg viewBox="0 0 24 24" width="28" height="28"><circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v10M7 12h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
-      <button class="composer-icon" aria-label="Apps">
-        <svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor"/></svg>
-      </button>
+      <input type="file" id="photoInput" accept="image/*" hidden />
       <div class="input-wrap">
         <input id="msgInput" class="msg-input" type="text" placeholder="iMessage" autocomplete="off" />
         <button id="sendBtn" class="send-btn" aria-label="Send" hidden>
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 20V5m0 0l-6 6m6-6l6 6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button id="micBtn" class="mic-btn" aria-label="Dictate">
-          <svg viewBox="0 0 24 24" width="17" height="17"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        </button>
       </div>
     </footer>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
