@@ -239,16 +239,18 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       const reactionsEl = document.createElement("div");
       reactionsEl.className = `reaction-badge ${side}`;
 
-      // group by emoji and count
+      // group by emoji and count, preserving stable order (sorted by codepoint)
       const counts = {};
       const reactUid = isAdmin ? "admin" : myUid;
       Object.entries(m.reactions).forEach(([key, emoji]) => {
-        if (!counts[emoji]) counts[emoji] = { count: 0, mine: false };
+        if (!counts[emoji]) { counts[emoji] = { count: 0, mine: false }; }
         counts[emoji].count++;
         if (key.startsWith(`${reactUid}_`)) counts[emoji].mine = true;
       });
 
-      Object.entries(counts).forEach(([emoji, data]) => {
+      const emojiOrder = Object.keys(counts).sort();
+      emojiOrder.forEach((emoji) => {
+        const data = counts[emoji];
         const pill = document.createElement("button");
         pill.className = `reaction-pill${data.mine ? " mine" : ""}`;
         pill.innerHTML = `${emoji} <span class="reaction-count">${data.count}</span>`;
@@ -330,7 +332,7 @@ initAuth().then((uid) => {
 let blockedUids = new Set(getBlockedUsers().map(b => b.uid));
 let blockedList = getBlockedUsers();
 
-const REACTIONS = ["❤️", "👍", "👎", "😂", "‼️", "❓", "🎉"];
+const REACTIONS = ["👍", "👎", "🫪", "❓"];
 
 function showContextMenu(e, msg, isMe) {
   // remove any existing menu
@@ -359,9 +361,19 @@ function showContextMenu(e, msg, isMe) {
     btn.textContent = emoji;
     btn.addEventListener("click", () => {
       addReaction(msg.id, emoji);
+      overlay.remove();
     });
     reactionBar.appendChild(btn);
   });
+  // more emojis button
+  const moreBtn = document.createElement("button");
+  moreBtn.className = "ctx-reaction-btn ctx-reaction-more";
+  moreBtn.textContent = "+";
+  moreBtn.addEventListener("click", (e) => {
+    overlay.remove();
+    showEmojiPicker(e, msg);
+  });
+  reactionBar.appendChild(moreBtn);
   container.appendChild(reactionBar);
 
   // --- Action list ---
@@ -372,7 +384,7 @@ function showContextMenu(e, msg, isMe) {
   actions.forEach((action) => {
     const item = document.createElement("button");
     item.className = `ctx-action-item${action.danger ? " ctx-danger" : ""}`;
-    item.innerHTML = `<span>${action.label}</span><span class="ctx-action-icon">${action.icon}</span>`;
+    item.innerHTML = `<span class="ctx-action-icon">${action.icon}</span><span>${action.label}</span>`;
     item.addEventListener("click", () => {
       overlay.remove();
       action.handler();
@@ -713,7 +725,7 @@ function compressImage(file, maxWidth, quality) {
 }
 
 /* ============================================================
-   ADMIN TOGGLE — triple-click header avatar to toggle admin mode
+   ADMIN TOGGLE — long press header avatar to toggle admin mode
    ============================================================ */
 function refilterMessages() {
   if (!isAdmin) {
@@ -726,16 +738,13 @@ function refilterMessages() {
 (function() {
   const avatar = document.querySelector(".hdr-avatar");
   if (!avatar) return;
-  let tapCount = 0;
-  let tapTimer = null;
-  avatar.addEventListener("click", () => {
-    tapCount++;
-    clearTimeout(tapTimer);
-    tapTimer = setTimeout(() => { tapCount = 0; }, 500);
-    if (tapCount >= 3) {
-      tapCount = 0;
+  let pressTimer = null;
+
+  avatar.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
       if (isAdmin) {
-        // toggle off admin
         isAdmin = false;
         localStorage.setItem("isAdmin", "false");
         checkIfBlocked();
@@ -743,7 +752,6 @@ function refilterMessages() {
         render();
         banner("관리자 모드 해제");
       } else {
-        // prompt for password
         const pass = prompt("관리자 비밀번호:");
         if (pass === ADMIN_PASSCODE) {
           isAdmin = true;
@@ -756,8 +764,11 @@ function refilterMessages() {
           banner("비밀번호가 틀렸습니다");
         }
       }
-    }
+    }, 800);
   });
+
+  avatar.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+  avatar.addEventListener("pointerleave", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
 })();
 
 /* ============================================================

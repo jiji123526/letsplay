@@ -411,10 +411,15 @@ body {
 .ctx-reactions {
   display: flex;
   gap: 4px;
-  background: var(--bg);
+  background: rgba(255,255,255,.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-radius: 22px;
   padding: 6px 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,.15);
+}
+[data-theme="dark"] .ctx-reactions {
+  background: rgba(40,40,42,.85);
 }
 .ctx-reaction-btn {
   width: 36px; height: 36px;
@@ -432,25 +437,37 @@ body {
 .ctx-reaction-btn:active {
   transform: scale(1.4);
 }
+.ctx-reaction-more {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--meta);
+  background: var(--hairline);
+  border-radius: 50%;
+}
 
 /* action list */
 .ctx-actions {
-  background: var(--bg);
+  background: rgba(255,255,255,.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,.15);
 }
+[data-theme="dark"] .ctx-actions {
+  background: rgba(40,40,42,.85);
+}
 .ctx-action-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   width: 100%;
   border: none;
   background: none;
   color: var(--gray-text);
-  font-size: 15px;
+  font-size: 16px;
   font-family: inherit;
-  padding: 12px 16px;
+  padding: 13px 16px;
   cursor: pointer;
   border-bottom: .5px solid var(--hairline);
   text-align: left;
@@ -458,7 +475,7 @@ body {
 .ctx-action-item:last-child { border-bottom: none; }
 .ctx-action-item:active { background: var(--hairline); }
 .ctx-action-item.ctx-danger { color: #ff3b30; }
-.ctx-action-icon { font-size: 16px; }
+.ctx-action-icon { font-size: 18px; width: 24px; text-align: center; }
 
 /* ---------- blocked user bubbles ---------- */
 .bubble.blocked {
