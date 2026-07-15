@@ -113,10 +113,11 @@ function showDmMenu(e, msg, bubbleEl) {
   const composerEl = document.querySelector(".composer");
   const composerTop = composerEl.getBoundingClientRect().top;
   const normalActionY = rect.bottom + gap;
+  const actionEstimate = 80;
 
-  if (normalActionY + 130 > composerTop) {
+  if (normalActionY + actionEstimate > composerTop) {
     const availableForActions = composerTop - gap;
-    const targetBubbleBottom = availableForActions - 130 - gap;
+    const targetBubbleBottom = availableForActions - actionEstimate - gap;
     const targetBubbleTop = targetBubbleBottom - bubbleHeight;
     const shiftAmount = rect.top - targetBubbleTop;
     bubble.style.transform = `translateY(-${shiftAmount}px)`;
@@ -537,11 +538,13 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const composerTop = composerEl.getBoundingClientRect().top;
   const normalActionY = rect.bottom + gap;
 
+  // estimate action menu height based on number of actions (will be calculated after)
+  const actionEstimate = 80; // shorter estimate for typical 2-3 items
+
   // if actions would go below composer, shift bubble up
-  if (normalActionY + 130 > composerTop) {
-    // position bubble so that: bubble bottom + gap + action height fits above composer
-    const availableForActions = composerTop - gap; // max bottom for actions
-    const targetBubbleBottom = availableForActions - 130 - gap; // bubble bottom = composer - gap - actions - gap
+  if (normalActionY + actionEstimate > composerTop) {
+    const availableForActions = composerTop - gap;
+    const targetBubbleBottom = availableForActions - actionEstimate - gap;
     const targetBubbleTop = targetBubbleBottom - bubbleHeight;
     const shiftAmount = rect.top - targetBubbleTop;
     bubble.style.transform = `translateY(-${shiftAmount}px)`;
@@ -553,7 +556,7 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
     reactionY = rect.top - gap - reactionBarH;
   }
 
-  // position reactions above
+  // position reactions above - align to same side as bubble
   if (isMe) {
     container.style.right = `${window.innerWidth - rect.right}px`;
     container.style.top = `${reactionY}px`;
