@@ -90,7 +90,15 @@ function render() {
 
   // only auto-scroll if user was already near the bottom
   if (shouldAutoScroll) {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    messagesEl.scrollTop = 999999;
+    if (initialLoad) {
+      const imgs = messagesEl.querySelectorAll("img");
+      imgs.forEach((img) => {
+        if (!img.complete) {
+          img.addEventListener("load", () => { messagesEl.scrollTop = 999999; }, { once: true });
+        }
+      });
+    }
   }
 }
 
@@ -1597,8 +1605,8 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
-  // force scroll to bottom for first 3 seconds while data loads
-  setTimeout(() => { initialLoad = false; }, 3000);
+  // force scroll to bottom for first 5 seconds while data loads
+  setTimeout(() => { initialLoad = false; }, 5000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
