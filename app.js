@@ -664,9 +664,8 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
 
   // delay to let viewport settle after keyboard dismissal
   requestAnimationFrame(() => { setTimeout(() => {
-    const headerH = document.querySelector(".chat-header")?.offsetHeight || 60;
-    const noticeH = document.querySelector(".notice-banner")?.offsetHeight || 0;
-    const safeTop = headerH + noticeH + 8;
+    const avatarEl = document.querySelector(".hdr-avatar");
+    const safeTop = avatarEl ? avatarEl.getBoundingClientRect().top : 60;
     let rect = bubble.getBoundingClientRect();
 
     const container = document.createElement("div");
@@ -692,13 +691,9 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const needsUpShift = normalActionY + actionEstimate > composerTop;
 
   if (needsDownShift && !needsUpShift) {
-    // shift bubble down so reaction bar fits below header
-    const shiftAmount = (reactionBarH + gap) - spaceAbove;
-    bubble.style.transform = `translateY(${shiftAmount}px)`;
-    bubble.style.transition = "transform .2s ease";
-    rect = { top: rect.top + shiftAmount, bottom: rect.bottom + shiftAmount, left: rect.left, right: rect.right };
+    // scroll bubble down so reaction bar fits below header
     actionY = rect.bottom + gap;
-    reactionY = rect.top - gap - reactionBarH;
+    reactionY = safeTop;
   } else if (needsUpShift) {
     const availableForActions = composerTop - gap;
     const targetBubbleBottom = availableForActions - actionEstimate - gap;
