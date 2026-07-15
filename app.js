@@ -1663,6 +1663,8 @@ function toggleSearchBar() {
   
   const prevBtn = bar.querySelector(".search-prev");
   const nextBtn = bar.querySelector(".search-next");
+  prevBtn.disabled = true;
+  nextBtn.disabled = true;
 
   searchInput.focus();
 

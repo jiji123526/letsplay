@@ -197,7 +197,7 @@ body {
   position: absolute;
   bottom: 0;
   width: 10px;
-  height: 20px;
+  height: 25px;
   background: var(--bg);
   z-index: -1;
   transition: background .25s ease;
