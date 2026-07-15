@@ -90,7 +90,7 @@ function render() {
 
   // only auto-scroll if user was already near the bottom
   if (shouldAutoScroll) {
-    messagesEl.scrollTop = 999999;
+    requestAnimationFrame(() => { messagesEl.scrollTop = 999999; });
     if (initialLoad) {
       const imgs = messagesEl.querySelectorAll("img");
       imgs.forEach((img) => {
@@ -98,6 +98,8 @@ function render() {
           img.addEventListener("load", () => { messagesEl.scrollTop = 999999; }, { once: true });
         }
       });
+      // extra delayed scroll as final fallback
+      setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
     }
   }
 }
