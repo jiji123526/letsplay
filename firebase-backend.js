@@ -19,6 +19,9 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 const msgCol = collection(db, "messages");
+const dmCol = collection(db, "dm");
+const galleryCol = collection(db, "gallery");
+const noticeDoc = doc(db, "config", "notice");
 
 export function initAuth() {
   return new Promise((resolve, reject) => {
@@ -40,12 +43,14 @@ export function subscribe(cb) {
   });
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId }) {
   const authUid = auth.currentUser.uid;
   const data = { uid, authUid, nick, text, is_admin: !!is_admin, createdAt: serverTimestamp() };
   if (replyTo) data.replyTo = replyTo;
   if (report) { data.report = true; data.reportedMsgId = reportedMsgId || null; }
   if (image) data.image = image;
+  if (dm) data.dm = true;
+  if (galleryId) data.galleryId = galleryId;
   await addDoc(msgCol, data);
 }
 
@@ -115,4 +120,62 @@ export async function unblockUser(uid) {
   const snap = await getDocs(query(blockedCol));
   const docToDelete = snap.docs.find((d) => d.data().uid === uid);
   if (docToDelete) await deleteDoc(doc(db, "blocked", docToDelete.id));
+}
+
+/* ---- DM (separate collection, only admin subscribes) ---- */
+export async function sendDm({ uid, nick, text, image }) {
+  const authUid = auth.currentUser.uid;
+  const data = { uid, authUid, nick, text, createdAt: serverTimestamp() };
+  if (image) data.image = image;
+  await addDoc(dmCol, data);
+}
+
+export async function removeDm(id) {
+  await deleteDoc(doc(db, "dm", id));
+}
+
+export function subscribeDm(cb) {
+  const q = query(dmCol, orderBy("createdAt", "asc"), limit(500));
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => {
+      const data = d.data();
+      return { id: d.id, ...data, createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : null };
+    }));
+  });
+}
+
+/* ---- Gallery ---- */
+export async function saveToGallery(image) {
+  const ref = await addDoc(galleryCol, { image, createdAt: serverTimestamp() });
+  return ref.id;
+}
+
+/* ---- Notice (global, stored in config/notice doc) ---- */
+export async function setNotice(text) {
+  const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  await setDoc(noticeDoc, { text, updatedAt: serverTimestamp() });
+}
+
+export function subscribeNotice(cb) {
+  return onSnapshot(noticeDoc, (snap) => {
+    if (snap.exists()) {
+      cb(snap.data().text || "");
+    } else {
+      cb("");
+    }
+  });
+}
+
+export function subscribeGallery(cb) {
+  const q = query(galleryCol, orderBy("createdAt", "desc"), limit(100));
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => {
+      const data = d.data();
+      return { id: d.id, ...data, createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : null };
+    }));
+  });
+}
+
+export async function removeFromGallery(id) {
+  await deleteDoc(doc(db, "gallery", id));
 }

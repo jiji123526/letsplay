@@ -9,12 +9,20 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, IS_MOCK } from "./backend.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, IS_MOCK } from "./backend.js";
 import { ADMIN_PASSCODE } from "./firebase-config.js";
 import "https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js";
 
 const $ = (s) => document.querySelector(s);
 const messagesEl = $("#messages");
+
+/* restore saved settings */
+(function() {
+  const savedSize = localStorage.getItem("fontSize");
+  if (savedSize) document.documentElement.style.setProperty("--bubble-font-size", `${savedSize}px`);
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+})();
 
 /* ---------- local state ---------- */
 let myUid   = null;
@@ -22,6 +30,8 @@ let myNick  = "";          // derived from uid on sign-in (anonymous tag)
 let isAdmin = localStorage.getItem("isAdmin") === "true";
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
+let dmMessages = [];             // DM messages (admin only)
+let galleryItems = [];           // gallery photos
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
 function saveReportedIds() {
@@ -83,6 +93,80 @@ function render() {
   }
 }
 
+function showDmMenu(e, msg, bubbleEl) {
+  document.querySelector(".ctx-overlay")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "ctx-overlay";
+
+  // elevate the original bubble
+  const bubble = bubbleEl || e.currentTarget;
+  bubble.classList.add("ctx-elevated");
+
+  const rect = bubble.getBoundingClientRect();
+
+  // reactions above
+  const container = document.createElement("div");
+  container.className = "ctx-container";
+  container.style.left = `${rect.left}px`;
+  container.style.top = `${rect.top - 56}px`;
+  container.style.alignItems = "flex-start";
+
+  const reactionBar = document.createElement("div");
+  reactionBar.className = "ctx-reactions";
+  REACTIONS.forEach((emoji) => {
+    const btn = document.createElement("button");
+    btn.className = "ctx-reaction-btn";
+    btn.textContent = emoji;
+    btn.addEventListener("click", () => { addReaction(msg.id, emoji); closeMenu(); });
+    reactionBar.appendChild(btn);
+  });
+  const moreBtn = document.createElement("button");
+  moreBtn.className = "ctx-reaction-btn ctx-reaction-more";
+  moreBtn.textContent = "+";
+  moreBtn.addEventListener("click", (ev) => { closeMenu(); showEmojiPicker(ev, msg); });
+  reactionBar.appendChild(moreBtn);
+  container.appendChild(reactionBar);
+
+  // actions below
+  const actionContainer = document.createElement("div");
+  actionContainer.className = "ctx-actions-wrap";
+  actionContainer.style.position = "fixed";
+  actionContainer.style.left = `${rect.left}px`;
+  actionContainer.style.top = `${rect.bottom + 8}px`;
+
+  const actionList = document.createElement("div");
+  actionList.className = "ctx-actions";
+
+  const actions = [
+    { label: "삭제", icon: ICONS.delete, danger: true, handler: () => removeDm(msg.id) },
+    { label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
+      blockedUids.add(msg.uid);
+      blockUser(msg.uid, msg.text || "[DM]");
+      render();
+    }},
+  ];
+
+  actions.forEach((action) => {
+    const item = document.createElement("button");
+    item.className = `ctx-action-item${action.danger ? " ctx-danger" : ""}`;
+    item.innerHTML = `<span class="ctx-action-icon">${action.icon}</span><span>${action.label}</span>`;
+    item.addEventListener("click", () => { closeMenu(); action.handler(); });
+    actionList.appendChild(item);
+  });
+
+  actionContainer.appendChild(actionList);
+  overlay.appendChild(container);
+  overlay.appendChild(actionContainer);
+  document.body.appendChild(overlay);
+
+  const closeMenu = () => {
+    bubble.classList.remove("ctx-elevated");
+    overlay.remove();
+  };
+  overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closeMenu(); });
+}
+
 function renderMessage(m, prev, next, isReply, parentMsg) {
     const isMe = isAdmin ? m.uid === "admin" : m.uid === myUid;
 
@@ -131,6 +215,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
     bubble.className = `bubble ${side}`;
     if (m.is_admin) bubble.classList.add("admin-bubble");
     if (m.report) bubble.classList.add("report-bubble");
+    if (m.dm) bubble.classList.add("dm-bubble");
     if (reportedMsgIds.has(m.id)) bubble.classList.add("reported");
     // admin: mark messages that have been reported by others
     if (isAdmin && !m.report && messages.some((r) => r.report && r.reportedMsgId === m.id)) {
@@ -145,23 +230,32 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
     if (m.deleted) {
       bubble.textContent = "삭제된 메세지입니다";
       bubble.classList.add("deleted");
-    } else if (m.image) {
-      const imgWrap = document.createElement("div");
-      imgWrap.className = "bubble-img-wrap";
-      const img = document.createElement("img");
-      img.className = "bubble-img";
-      img.src = m.image;
-      img.alt = "photo";
-      const expandBtn = document.createElement("button");
-      expandBtn.className = "bubble-img-expand";
-      expandBtn.textContent = "⤢";
-      expandBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        showFullImage(m.image);
-      });
-      imgWrap.appendChild(img);
-      imgWrap.appendChild(expandBtn);
-      bubble.appendChild(imgWrap);
+    } else if (m.galleryId || m.image) {
+      // look up image from gallery collection, fall back to m.image for old messages
+      const galleryItem = m.galleryId ? galleryItems.find((g) => g.id === m.galleryId) : null;
+      const imageSrc = galleryItem ? galleryItem.image : m.image;
+      if (imageSrc) {
+        const imgWrap = document.createElement("div");
+        imgWrap.className = "bubble-img-wrap";
+        const img = document.createElement("img");
+        img.className = "bubble-img";
+        img.src = imageSrc;
+        img.alt = "photo";
+        const expandBtn = document.createElement("button");
+        expandBtn.className = "bubble-img-expand";
+        expandBtn.textContent = "⤢";
+        expandBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showFullImage(imageSrc);
+        });
+        imgWrap.appendChild(img);
+        imgWrap.appendChild(expandBtn);
+        bubble.appendChild(imgWrap);
+      } else {
+        // gallery item was deleted
+        bubble.textContent = "삭제된 사진입니다";
+        bubble.classList.add("deleted");
+      }
       if (m.text) {
         const caption = document.createElement("div");
         caption.className = "bubble-caption";
@@ -213,21 +307,52 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       col.appendChild(bubbleRow);
     }
 
-    /* context menu on tap (for non-deleted messages) */
+    /* context menu on long press (for non-deleted messages) */
     if (!m.deleted) {
       bubble.style.cursor = "pointer";
-      if (m.report && m.reportedMsgId && isAdmin) {
-        // report bubbles: tap to scroll to the reported message
-        bubble.addEventListener("click", (e) => {
-          e.stopPropagation();
-          scrollToMessage(m.reportedMsgId);
-        });
-      } else {
-        bubble.addEventListener("click", (e) => {
-          e.stopPropagation();
-          showContextMenu(e, m, isMe);
-        });
-      }
+      let pressTimer = null;
+
+      bubble.addEventListener("touchstart", (e) => {
+        const targetBubble = bubble;
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          if (m.report && m.reportedMsgId && isAdmin) {
+            scrollToMessage(m.reportedMsgId);
+          } else if (m.dm && isAdmin) {
+            showDmMenu(e, m, targetBubble);
+          } else {
+            showContextMenu(e, m, isMe, targetBubble);
+          }
+        }, 500);
+      }, { passive: true });
+
+      bubble.addEventListener("touchend", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
+      bubble.addEventListener("touchmove", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
+
+      // desktop: use mousedown
+      bubble.addEventListener("mousedown", (e) => {
+        const targetBubble = bubble;
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          if (m.report && m.reportedMsgId && isAdmin) {
+            scrollToMessage(m.reportedMsgId);
+          } else if (m.dm && isAdmin) {
+            showDmMenu(e, m, targetBubble);
+          } else {
+            showContextMenu(e, m, isMe, targetBubble);
+          }
+        }, 500);
+      });
+      bubble.addEventListener("mouseup", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
+      bubble.addEventListener("mouseleave", () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      });
     }
 
     if (!isReply) {
@@ -334,23 +459,40 @@ let blockedList = getBlockedUsers();
 
 const REACTIONS = ["👍", "👎", "🫪", "❓"];
 
-function showContextMenu(e, msg, isMe) {
+const ICONS = {
+  reply: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h14a4 4 0 0 1 4 4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  delete: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  block: '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.93 4.93l14.14 14.14" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  report: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 22V15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  unreport: '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+};
+
+function showContextMenu(e, msg, isMe, bubbleEl) {
   // remove any existing menu
   document.querySelector(".ctx-overlay")?.remove();
 
   const overlay = document.createElement("div");
   overlay.className = "ctx-overlay";
 
+  // elevate the original bubble above the overlay
+  const bubble = bubbleEl || e.currentTarget;
+  bubble.classList.add("ctx-elevated");
+
   const container = document.createElement("div");
   container.className = "ctx-container";
 
-  // position near the tap
-  const top = Math.min(e.clientY - 30, window.innerHeight - 280);
-  const left = isMe
-    ? Math.max(window.innerWidth - 320, 16)
-    : Math.min(e.clientX - 20, window.innerWidth - 260);
-  container.style.top = `${top}px`;
-  container.style.left = `${left}px`;
+  // position reactions/actions relative to the original bubble
+  const rect = bubble.getBoundingClientRect();
+  if (isMe) {
+    container.style.right = `${window.innerWidth - rect.right}px`;
+    container.style.top = `${rect.top - 56}px`;
+    container.style.alignItems = "flex-end";
+  } else {
+    container.style.left = `${rect.left}px`;
+    container.style.top = `${rect.top - 56}px`;
+    container.style.alignItems = "flex-start";
+  }
 
   // --- Reaction bar ---
   const reactionBar = document.createElement("div");
@@ -361,7 +503,7 @@ function showContextMenu(e, msg, isMe) {
     btn.textContent = emoji;
     btn.addEventListener("click", () => {
       addReaction(msg.id, emoji);
-      overlay.remove();
+      closeMenu();
     });
     reactionBar.appendChild(btn);
   });
@@ -370,13 +512,26 @@ function showContextMenu(e, msg, isMe) {
   moreBtn.className = "ctx-reaction-btn ctx-reaction-more";
   moreBtn.textContent = "+";
   moreBtn.addEventListener("click", (e) => {
-    overlay.remove();
+    closeMenu();
     showEmojiPicker(e, msg);
   });
   reactionBar.appendChild(moreBtn);
   container.appendChild(reactionBar);
 
-  // --- Action list ---
+  // --- Action list (positioned below the original bubble) ---
+  const actionContainer = document.createElement("div");
+  actionContainer.className = "ctx-actions-wrap";
+  const actRect = bubble.getBoundingClientRect();
+  if (isMe) {
+    actionContainer.style.position = "fixed";
+    actionContainer.style.right = `${window.innerWidth - actRect.right}px`;
+    actionContainer.style.top = `${actRect.bottom + 8}px`;
+  } else {
+    actionContainer.style.position = "fixed";
+    actionContainer.style.left = `${actRect.left}px`;
+    actionContainer.style.top = `${actRect.bottom + 8}px`;
+  }
+
   const actionList = document.createElement("div");
   actionList.className = "ctx-actions";
 
@@ -386,23 +541,33 @@ function showContextMenu(e, msg, isMe) {
     item.className = `ctx-action-item${action.danger ? " ctx-danger" : ""}`;
     item.innerHTML = `<span class="ctx-action-icon">${action.icon}</span><span>${action.label}</span>`;
     item.addEventListener("click", () => {
-      overlay.remove();
+      closeMenu();
       action.handler();
     });
     actionList.appendChild(item);
   });
 
-  container.appendChild(actionList);
+  actionContainer.appendChild(actionList);
   overlay.appendChild(container);
+  overlay.appendChild(actionContainer);
   document.body.appendChild(overlay);
 
-  // close on overlay click
+  // close on overlay click — remove elevated class
+  const closeMenu = () => {
+    bubble.classList.remove("ctx-elevated");
+    overlay.remove();
+  };
   overlay.addEventListener("click", (ev) => {
-    if (ev.target === overlay) overlay.remove();
+    if (ev.target === overlay) closeMenu();
   });
 }
 
 function deleteMessageWithReplies(msgId) {
+  // delete gallery photo if the message references one
+  const msg = messages.find((m) => m.id === msgId);
+  if (msg && msg.galleryId) {
+    removeFromGallery(msg.galleryId);
+  }
   // delete the message itself
   removeMessage(msgId);
   // delete all replies to this message and reports referencing it
@@ -417,12 +582,12 @@ function getActions(msg, isMe) {
   if (isAdmin && !isMe) {
     // admin viewing others' messages
     const actions = [];
-    actions.push({ label: "답장", icon: "↩️", danger: false, handler: () => {
+    actions.push({ label: "답장", icon: ICONS.reply, danger: false, handler: () => {
       // always reply to the top-level parent, not to a reply
       const target = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) || msg : msg;
       setReply(target);
     }});
-    actions.push({ label: "삭제", icon: "🗑", danger: true, handler: () => {
+    actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
       if (msg.report && msg.reportedMsgId) {
         // deleting a report: delete the reported message, its replies, and the report itself
         deleteMessageWithReplies(msg.reportedMsgId);
@@ -431,7 +596,7 @@ function getActions(msg, isMe) {
         deleteMessageWithReplies(msg.id);
       }
     }});
-    actions.push({ label: "사용자 차단", icon: "🚫", danger: true, handler: () => {
+    actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       const isBlocked = blockedUids.has(msg.uid);
       if (isBlocked) { blockedUids.delete(msg.uid); import("./backend.js").then(b => b.unblockUser(msg.uid)); }
       else { blockedUids.add(msg.uid); blockUser(msg.uid, msg.text); }
@@ -441,44 +606,58 @@ function getActions(msg, isMe) {
   } else if (isAdmin && isMe) {
     // admin viewing own messages
     const actions = [];
-    actions.push({ label: "답장", icon: "↩️", danger: false, handler: () => {
+    actions.push({ label: "답장", icon: ICONS.reply, danger: false, handler: () => {
       const target = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) || msg : msg;
       setReply(target);
     }});
-    actions.push({ label: "수정", icon: "✏️", danger: false, handler: () => {
+    actions.push({ label: "수정", icon: ICONS.edit, danger: false, handler: () => {
       const newText = prompt("메시지 수정:", msg.text);
       if (newText !== null && newText.trim()) editMessage(msg.id, newText.trim());
     }});
-    actions.push({ label: "삭제", icon: "🗑", danger: true, handler: () => removeMessage(msg.id) });
+    actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
+      if (msg.galleryId) removeFromGallery(msg.galleryId);
+      removeMessage(msg.id);
+    }});
     return actions;
   } else if (!isAdmin && isMe) {
     // non-admin viewing own messages
     const actions = [];
-    actions.push({ label: "답장", icon: "↩️", danger: false, handler: () => {
+    actions.push({ label: "답장", icon: ICONS.reply, danger: false, handler: () => {
       const target = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) || msg : msg;
       setReply(target);
     }});
-    actions.push({ label: "삭제", icon: "🗑", danger: true, handler: () => softDeleteMessage(msg.id) });
+    actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
+      const hasReplies = allMessages.some((r) => r.replyTo === msg.id);
+      // delete gallery photo if message has one
+      if (msg.galleryId) {
+        removeFromGallery(msg.galleryId);
+      }
+      if (hasReplies) {
+        softDeleteMessage(msg.id);
+      } else {
+        removeMessage(msg.id);
+      }
+    }});
     if (!msg.is_admin) {
       if (reportedMsgIds.has(msg.id)) {
-        actions.push({ label: "신고 취소", icon: "↩️", danger: false, handler: () => unreportMessage(msg) });
+        actions.push({ label: "신고 취소", icon: ICONS.unreport, danger: false, handler: () => unreportMessage(msg) });
       } else {
-        actions.push({ label: "신고", icon: "🚨", danger: true, handler: () => reportMessage(msg) });
+        actions.push({ label: "신고", icon: ICONS.report, danger: true, handler: () => reportMessage(msg) });
       }
     }
     return actions;
   } else {
     // non-admin viewing others' messages
     const actions = [];
-    actions.push({ label: "답장", icon: "↩️", danger: false, handler: () => {
+    actions.push({ label: "답장", icon: ICONS.reply, danger: false, handler: () => {
       const target = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) || msg : msg;
       setReply(target);
     }});
     if (!msg.is_admin) {
       if (reportedMsgIds.has(msg.id)) {
-        actions.push({ label: "신고 취소", icon: "↩️", danger: false, handler: () => unreportMessage(msg) });
+        actions.push({ label: "신고 취소", icon: ICONS.unreport, danger: false, handler: () => unreportMessage(msg) });
       } else {
-        actions.push({ label: "신고", icon: "🚨", danger: true, handler: () => reportMessage(msg) });
+        actions.push({ label: "신고", icon: ICONS.report, danger: true, handler: () => reportMessage(msg) });
       }
     }
     return actions;
@@ -576,7 +755,7 @@ function setReply(msg) {
     document.querySelector(".composer").insertAdjacentElement("beforebegin", bar);
   }
   const preview = msg.text.length > 30 ? msg.text.slice(0, 30) + "…" : msg.text;
-  bar.innerHTML = `<span class="reply-bar-text">↩️ ${preview}</span><button class="reply-bar-close">✕</button>`;
+  bar.innerHTML = `<svg class="reply-bar-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h14a4 4 0 0 1 4 4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reply-bar-text">${preview}</span><button class="reply-bar-close">✕</button>`;
   bar.querySelector(".reply-bar-close").addEventListener("click", clearReply);
   input.focus();
 }
@@ -594,7 +773,7 @@ function checkIfBlocked() {
     input.placeholder = "차단된 사용자입니다";
     sendBtn.hidden = true;
   } else {
-    input.placeholder = isAdmin ? "말조심" : "싸우지마";
+    input.placeholder = isAdmin ? "말조심" : "친하게 지내";
     toggleSend();
   }
   return blocked;
@@ -628,11 +807,28 @@ async function send() {
   const nick = isAdmin ? "관리자" : myNick;
   const sendUid = isAdmin ? "admin" : myUid;
   const msgData = { uid: sendUid, nick, text, is_admin: isAdmin };
-  if (pendingPhoto) { msgData.image = pendingPhoto; pendingPhoto = null; removePhotoPreview(); }
+  let photoData = null;
+  if (pendingPhoto) {
+    photoData = pendingPhoto;
+    pendingPhoto = null;
+    removePhotoPreview();
+  }
   if (replyingTo) { msgData.replyTo = replyingTo.id; }
   clearReply();
   try {
-    await sendMessage(msgData);
+    if (dmMode && !isAdmin) {
+      await sendDm({ uid: sendUid, nick, text, image: photoData });
+      dmMode = false;
+      updateDmUI();
+      banner("찍이에게 전송됨", "#9b59b6");
+    } else {
+      // save photo to gallery first, then reference it in the message
+      if (photoData) {
+        const galleryId = await saveToGallery(photoData);
+        msgData.galleryId = galleryId;
+      }
+      await sendMessage(msgData);
+    }
     sendTimestamps.push(Date.now());
   }
   catch (e) { console.error("send failed", e); banner("전송 실패"); }
@@ -668,8 +864,122 @@ function scrollToMessage(msgId) {
 const photoBtn = $("#photoBtn");
 const photoInput = $("#photoInput");
 let pendingPhoto = null; // stores the compressed data URL until user sends
+let dmMode = false; // DM to admin mode
 
-photoBtn.addEventListener("click", () => photoInput.click());
+photoBtn.addEventListener("click", (e) => {
+  if (isAdmin) {
+    showAdminPlusMenu(e);
+  } else {
+    showPlusMenu(e);
+  }
+});
+
+function showAdminPlusMenu(e) {
+  document.querySelector(".plus-menu")?.remove();
+
+  const menu = document.createElement("div");
+  menu.className = "plus-menu";
+  menu.innerHTML = `
+    <button class="plus-menu-item" data-action="photo"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg> 사진 보내기</button>
+    <button class="plus-menu-item" data-action="notice"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 공지 등록</button>
+  `;
+
+  menu.querySelector('[data-action="photo"]').addEventListener("click", () => { menu.remove(); photoInput.click(); });
+  menu.querySelector('[data-action="notice"]').addEventListener("click", () => { menu.remove(); showNoticeInput(); });
+
+  const rect = photoBtn.getBoundingClientRect();
+  menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+  menu.style.left = `${rect.left}px`;
+
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener("click", close); } };
+    document.addEventListener("click", close);
+  }, 10);
+}
+
+function showNoticeInput() {
+  const text = prompt("공지 내용:");
+  if (text && text.trim()) {
+    setNoticeBanner(text.trim());
+  }
+}
+
+let currentNotice = "";
+
+function setNoticeBanner(text) {
+  currentNotice = text;
+  localStorage.removeItem("noticeDismissed");
+  setNotice(text);
+  renderNoticeBanner();
+}
+
+function renderNoticeBanner() {
+  document.querySelector(".notice-banner")?.remove();
+  if (!currentNotice) return;
+  // don't show if user dismissed it
+  if (localStorage.getItem("noticeDismissed") === currentNotice) return;
+
+  const banner = document.createElement("div");
+  banner.className = "notice-banner";
+  banner.innerHTML = `
+    <span class="notice-banner-icon"><svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M5.063,19.369l0.521,4.602c0.007,0.067,0.021,0.133,0.042,0.197c0.412,1.266,1.591,2.072,2.855,2.072c0.308,0,0.619-0.048,0.927-0.148c1.572-0.512,2.436-2.208,1.924-3.781l-0.83-2.551h0.261l7.789,3.895c0.142,0.07,0.294,0.105,0.447,0.105c0.183,0,0.365-0.05,0.525-0.149C19.82,23.429,20,23.107,20,22.76v-4.142c1.721-0.447,3-2,3-3.858s-1.279-3.411-3-3.858V6.76c0-0.347-0.18-0.668-0.475-0.851c-0.295-0.183-0.663-0.199-0.973-0.044L10.764,9.76H7c-2.757,0-5,2.243-5,5C2,16.831,3.265,18.611,5.063,19.369z M9.43,22.93c0.171,0.524-0.116,1.089-0.641,1.26c-0.499,0.163-1.032-0.089-1.231-0.562L7.119,19.76h1.279L9.43,22.93z M21,14.76c0,0.737-0.405,1.375-1,1.722v-3.443C20.595,13.385,21,14.023,21,14.76z M18,21.142l-6-3v-6.764l6-3V21.142z M7,11.76h3v6H7c-1.654,0-3-1.346-3-3S5.346,11.76,7,11.76z"/><path d="M27,15.76h2c0.553,0,1-0.448,1-1s-0.447-1-1-1h-2c-0.553,0-1,0.448-1,1S26.447,15.76,27,15.76z"/><path d="M27,10.467c0.256,0,0.512-0.098,0.707-0.293l1.414-1.414c0.391-0.391,0.391-1.023,0-1.414s-1.023-0.391-1.414,0L26.293,8.76c-0.391,0.391-0.391,1.023,0,1.414C26.488,10.37,26.744,10.467,27,10.467z"/><path d="M27.707,22.174c0.195,0.195,0.451,0.293,0.707,0.293s0.512-0.098,0.707-0.293c0.391-0.391,0.391-1.023,0-1.414l-1.414-1.414c-0.391-0.391-1.023-0.391-1.414,0s-0.391,1.023,0,1.414L27.707,22.174z"/></svg></span>
+    <span class="notice-banner-text">${currentNotice}</span>
+    <button class="notice-banner-close">✕</button>
+  `;
+
+  banner.querySelector(".notice-banner-close").addEventListener("click", () => {
+    localStorage.setItem("noticeDismissed", currentNotice);
+    banner.remove();
+  });
+
+  // insert after header as a floating element
+  document.querySelector(".chat-header").insertAdjacentElement("afterend", banner);
+}
+
+function showPlusMenu(e) {
+  document.querySelector(".plus-menu")?.remove();
+
+  const menu = document.createElement("div");
+  menu.className = "plus-menu";
+  menu.innerHTML = `
+    <button class="plus-menu-item" data-action="dm"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> ${dmMode ? "일반 메시지로 전환" : "비밀 메세지"}</button>
+    <button class="plus-menu-item" data-action="photo"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg> 사진 보내기</button>
+  `;
+
+  menu.querySelector('[data-action="photo"]').addEventListener("click", () => {
+    menu.remove();
+    photoInput.click();
+  });
+
+  menu.querySelector('[data-action="dm"]').addEventListener("click", () => {
+    menu.remove();
+    dmMode = !dmMode;
+    updateDmUI();
+  });
+
+  // position above the + button
+  const rect = photoBtn.getBoundingClientRect();
+  menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+  menu.style.left = `${rect.left}px`;
+
+  document.body.appendChild(menu);
+
+  setTimeout(() => {
+    const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener("click", close); } };
+    document.addEventListener("click", close);
+  }, 10);
+}
+
+function updateDmUI() {
+  if (dmMode) {
+    input.placeholder = "찍이에게 보내기";
+    document.querySelector(".input-wrap").classList.add("dm-mode");
+  } else {
+    input.placeholder = "친하게 지내";
+    document.querySelector(".input-wrap").classList.remove("dm-mode");
+  }
+}
 
 photoInput.addEventListener("change", async () => {
   const file = photoInput.files[0];
@@ -725,18 +1035,57 @@ function compressImage(file, maxWidth, quality) {
 }
 
 /* ============================================================
+   GALLERY VIEW
+   ============================================================ */
+function showGallery() {
+  document.querySelector(".gallery-panel")?.remove();
+
+  const panel = document.createElement("div");
+  panel.className = "gallery-panel";
+
+  panel.innerHTML = `
+    <div class="gallery-panel-content">
+      <div class="gallery-panel-header">
+        <h3><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 갤러리</h3>
+        <button class="gallery-panel-close">✕</button>
+      </div>
+      <div class="gallery-grid">
+        ${galleryItems.length === 0
+          ? '<div class="gallery-empty">사진이 없습니다</div>'
+          : galleryItems.map((g) => `<img class="gallery-thumb" src="${g.image}" data-id="${g.id}" />`).join("")
+        }
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".gallery-panel-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  // tap a photo to view full
+  panel.querySelectorAll(".gallery-thumb").forEach((img) => {
+    img.addEventListener("click", () => {
+      showFullImage(img.src);
+    });
+  });
+
+  document.body.appendChild(panel);
+}
+
+/* ============================================================
    ADMIN TOGGLE — long press header avatar to toggle admin mode
    ============================================================ */
 function refilterMessages() {
   if (!isAdmin) {
     messages = allMessages.filter((m) => !m.report);
   } else {
-    messages = allMessages;
+    const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+    merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    messages = merged;
   }
 }
 
 (function() {
-  const avatar = document.querySelector(".hdr-avatar");
+  const avatar = document.querySelector(".chat-header");
   if (!avatar) return;
   let pressTimer = null;
 
@@ -774,10 +1123,152 @@ function refilterMessages() {
 /* ============================================================
    ADMIN MENU (3-dot button) — blocked users panel
    ============================================================ */
-document.querySelector(".hdr-menu")?.addEventListener("click", () => {
-  if (!isAdmin) return;
-  showBlockedPanel();
+/* ============================================================
+   NOTICE / USER GUIDE
+   ============================================================ */
+document.querySelector(".hdr-notice")?.addEventListener("click", () => {
+  showNoticePanel();
 });
+
+function showNoticePanel() {
+  document.querySelector(".notice-panel")?.remove();
+
+  const panel = document.createElement("div");
+  panel.className = "notice-panel";
+
+  panel.innerHTML = `
+    <div class="notice-panel-content">
+      <div class="notice-panel-header">
+        <h3><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 16v-4M12 8h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 공지사항</h3>
+        <button class="notice-panel-close">✕</button>
+      </div>
+      <div class="notice-panel-body">
+        <div class="notice-section">
+          <h4>이용 안내</h4>
+          <ul>
+            <li>꾹 눌러서 리액션/답장/신고 가능</li>
+            <li>본인이 쓴 메세지 삭제 가능, 답장 달렸을 시 삭제된 메세지로 표시</li>
+            <li>신고 철회 가능, 신고자에게만 신고 메세지 플래그</li>
+            <li>+ 메뉴: 사진 보내기 / 비밀 메세지</li>
+            <li>비밀 메세지는 찍이한테만 보이고 보낸 사람한테도 안보임</li>
+            <li>우측 상단에 설정 및 갤러리</li>
+          </ul>
+        </div>
+        <div class="notice-section">
+          <h4>규칙</h4>
+          <ul>
+            <li>호모:순덕 비율 알잘딱깔센</li>
+            <li>빡치는 메세지 있을경우 플 늘리지 말고 신고하면 다지워줌</li>
+            <li>차단당한거 억울하면 디엠</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".notice-panel-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  document.body.appendChild(panel);
+}
+
+document.querySelector(".hdr-menu")?.addEventListener("click", (e) => {
+  showHeaderMenu(e);
+});
+
+function showHeaderMenu(e) {
+  document.querySelector(".header-menu")?.remove();
+
+  const menu = document.createElement("div");
+  menu.className = "header-menu";
+  menu.innerHTML = `
+    <button class="header-menu-item" data-action="settings"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></svg> 설정</button>
+    <button class="header-menu-item" data-action="gallery"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 갤러리</button>
+  `;
+
+  menu.querySelector('[data-action="settings"]').addEventListener("click", () => { menu.remove(); showSettingsPanel(); });
+  menu.querySelector('[data-action="gallery"]').addEventListener("click", () => { menu.remove(); showGallery(); });
+
+  // position below the menu button
+  const rect = document.querySelector(".hdr-menu").getBoundingClientRect();
+  menu.style.top = `${rect.bottom + 6}px`;
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+
+  document.body.appendChild(menu);
+
+  setTimeout(() => {
+    const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener("click", close); } };
+    document.addEventListener("click", close);
+  }, 10);
+}
+
+function showSettingsPanel() {
+  document.querySelector(".settings-panel")?.remove();
+
+  const panel = document.createElement("div");
+  panel.className = "settings-panel";
+
+  const currentSize = parseInt(localStorage.getItem("fontSize") || "17");
+
+  panel.innerHTML = `
+    <div class="settings-panel-content">
+      <div class="settings-panel-header">
+        <h3>설정</h3>
+        <button class="settings-panel-close">✕</button>
+      </div>
+      <div class="settings-panel-body">
+        <div class="settings-item">
+          <span class="settings-label">글자 크기</span>
+          <div class="settings-font-control">
+            <button class="settings-font-btn" data-dir="-1">A-</button>
+            <span class="settings-font-value" id="fontSizeValue">${currentSize}px</span>
+            <button class="settings-font-btn" data-dir="1">A+</button>
+          </div>
+        </div>
+        <div class="settings-item">
+          <span class="settings-label">테마</span>
+          <div class="settings-theme-control">
+            <button class="settings-theme-btn" data-theme="light">라이트</button>
+            <button class="settings-theme-btn" data-theme="dark">다크</button>
+          </div>
+        </div>
+        <div class="settings-divider"></div>
+        ${isAdmin ? '<button class="settings-item settings-blocked-btn">차단된 사용자 관리</button>' : ''}
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".settings-panel-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  // font size controls
+  panel.querySelectorAll(".settings-font-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dir = parseInt(btn.dataset.dir);
+      const current = parseInt(panel.querySelector("#fontSizeValue").textContent);
+      const newSize = Math.min(20, Math.max(12, current + dir));
+      localStorage.setItem("fontSize", newSize);
+      document.documentElement.style.setProperty("--bubble-font-size", `${newSize}px`);
+      panel.querySelector("#fontSizeValue").textContent = `${newSize}px`;
+    });
+  });
+
+  // theme controls
+  panel.querySelectorAll(".settings-theme-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.documentElement.dataset.theme = btn.dataset.theme;
+      localStorage.setItem("theme", btn.dataset.theme);
+    });
+  });
+
+  // blocked users (admin only)
+  const blockedBtn = panel.querySelector(".settings-blocked-btn");
+  if (blockedBtn) {
+    blockedBtn.addEventListener("click", () => { panel.remove(); showBlockedPanel(); });
+  }
+
+  document.body.appendChild(panel);
+}
 
 function showBlockedPanel() {
   document.querySelector(".blocked-panel")?.remove();
@@ -843,19 +1334,38 @@ function startChat() {
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
-    // filter out report messages for non-admin viewers
+    // filter out report messages for display
     if (!isAdmin) {
       messages = list.filter((m) => !m.report);
     } else {
-      messages = list;
+      // admin: merge DMs into message list sorted by time
+      const merged = [...list, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+      merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      messages = merged;
     }
     render();
   });
+  // subscribe to DMs (admin sees them in the chat)
+  subscribeDm((list) => {
+    dmMessages = list;
+    // re-merge for admin view
+    if (isAdmin) {
+      const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+      merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      messages = merged;
+    }
+    render();
+  });
+  // subscribe to gallery
+  subscribeGallery((list) => { galleryItems = list; render(); });
+  // subscribe to notice
+  subscribeNotice((text) => { currentNotice = text; renderNoticeBanner(); });
   toggleSend();
+  renderNoticeBanner();
 }
 
 /* small non-blocking error banner */
-function banner(msg) {
+function banner(msg, color) {
   let b = $("#banner");
   if (!b) {
     b = document.createElement("div");
@@ -864,6 +1374,7 @@ function banner(msg) {
     document.body.appendChild(b);
   }
   b.textContent = msg;
+  b.style.background = color || "#ff3b30";
   b.style.display = "block";
   clearTimeout(banner._timer);
   banner._timer = setTimeout(() => { b.style.display = "none"; }, 3000);

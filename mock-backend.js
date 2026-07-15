@@ -55,11 +55,13 @@ export function subscribe(cb) {
   return () => listeners.delete(cb);
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId }) {
   const list = load();
   const msg = { id: id(), uid, nick, text, is_admin: !!is_admin, replyTo: replyTo || null, createdAt: new Date() };
   if (report) { msg.report = true; msg.reportedMsgId = reportedMsgId || null; }
   if (image) { msg.image = image; }
+  if (dm) { msg.dm = true; }
+  if (galleryId) { msg.galleryId = galleryId; }
   list.push(msg);
   save(list);
   emit();
@@ -171,4 +173,96 @@ export async function blockUser(uid, reason) {
 export async function unblockUser(uid) {
   const list = loadBlocked().filter((b) => b.uid !== uid);
   localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
+}
+
+/* ---- DM (separate storage) ---- */
+const DM_KEY = "mock_dm";
+const dmListeners = new Set();
+
+function loadDm() {
+  try {
+    return JSON.parse(localStorage.getItem(DM_KEY) || "[]").map((m) => ({
+      ...m, createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
+    }));
+  } catch { return []; }
+}
+function saveDm(list) {
+  localStorage.setItem(DM_KEY, JSON.stringify(
+    list.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
+  ));
+}
+
+export async function sendDm({ uid, nick, text, image }) {
+  const list = loadDm();
+  const msg = { id: id(), uid, nick, text, createdAt: new Date() };
+  if (image) msg.image = image;
+  list.push(msg);
+  saveDm(list);
+  dmListeners.forEach((cb) => cb(loadDm()));
+}
+
+export async function removeDm(mid) {
+  saveDm(loadDm().filter((m) => m.id !== mid));
+  dmListeners.forEach((cb) => cb(loadDm()));
+}
+
+export function subscribeDm(cb) {
+  dmListeners.add(cb);
+  cb(loadDm());
+  window.addEventListener("storage", (e) => { if (e.key === DM_KEY) cb(loadDm()); });
+  return () => dmListeners.delete(cb);
+}
+
+/* ---- Gallery ---- */
+const GALLERY_KEY = "mock_gallery";
+
+/* ---- Notice ---- */
+const NOTICE_KEY = "mock_notice";
+const noticeListeners = new Set();
+
+export async function setNotice(text) {
+  localStorage.setItem(NOTICE_KEY, text);
+  noticeListeners.forEach((cb) => cb(text));
+}
+
+export function subscribeNotice(cb) {
+  noticeListeners.add(cb);
+  cb(localStorage.getItem(NOTICE_KEY) || "");
+  window.addEventListener("storage", (e) => { if (e.key === NOTICE_KEY) cb(e.newValue || ""); });
+  return () => noticeListeners.delete(cb);
+}
+const galleryListeners = new Set();
+
+function loadGallery() {
+  try {
+    return JSON.parse(localStorage.getItem(GALLERY_KEY) || "[]").map((g) => ({
+      ...g, createdAt: g.createdAt ? new Date(g.createdAt) : new Date(),
+    }));
+  } catch { return []; }
+}
+function saveGalleryList(list) {
+  localStorage.setItem(GALLERY_KEY, JSON.stringify(
+    list.map((g) => ({ ...g, createdAt: g.createdAt.toISOString() }))
+  ));
+}
+
+export async function saveToGallery(image) {
+  const list = loadGallery();
+  const newId = id();
+  list.unshift({ id: newId, image, createdAt: new Date() });
+  saveGalleryList(list);
+  galleryListeners.forEach((cb) => cb(loadGallery()));
+  return newId;
+}
+
+export function subscribeGallery(cb) {
+  galleryListeners.add(cb);
+  cb(loadGallery());
+  window.addEventListener("storage", (e) => { if (e.key === GALLERY_KEY) cb(loadGallery()); });
+  return () => galleryListeners.delete(cb);
+}
+
+export async function removeFromGallery(gid) {
+  saveGalleryList(loadGallery().filter((g) => g.id !== gid));
+  galleryListeners.forEach((cb) => cb(loadGallery()));
 }
