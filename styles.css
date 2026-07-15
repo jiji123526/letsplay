@@ -40,6 +40,7 @@ html, body {
   margin: 0;
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: var(--bubble-font-size, 17px);
   background: var(--bg);
 }
 
@@ -380,7 +381,7 @@ body {
   transform: translateX(-50%);
   z-index: 60;
   background: #ff3b30; color: #fff;
-  font-size: 13px; font-weight: 600;
+  font-size: inherit; font-weight: 600;
   padding: 10px 16px; border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,.25);
   max-width: 90%; text-align: center;
@@ -401,6 +402,8 @@ body {
   flex-direction: column;
   gap: 8px;
   animation: ctxPop .2s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 @keyframes ctxPop { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
 
@@ -474,6 +477,8 @@ body {
 .ctx-actions-wrap {
   z-index: 101;
   animation: ctxPop .2s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .ctx-action-item {
   display: flex;
@@ -823,7 +828,7 @@ emoji-picker {
 }
 .bubble-caption {
   padding: 4px 8px 2px;
-  font-size: 15px;
+  font-size: var(--bubble-font-size, 17px);
 }
 
 /* ---------- full image overlay ---------- */
@@ -1237,3 +1242,53 @@ emoji-picker {
 [data-theme="dark"] .notice-banner {
   background: rgba(44,44,46,.75);
 }
+
+/* ---------- link preview card ---------- */
+.bubble-link {
+  color: inherit;
+  text-decoration: underline;
+}
+.bubble.sent .bubble-link { color: rgba(255,255,255,.9); }
+.link-preview-card {
+  display: block;
+  margin-top: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0,0,0,.05);
+  text-decoration: none;
+  color: inherit;
+}
+.bubble.sent .link-preview-card {
+  background: rgba(0,0,0,.15);
+}
+[data-theme="dark"] .link-preview-card {
+  background: rgba(255,255,255,.08);
+}
+.link-preview-img {
+  width: 100%;
+  max-height: 150px;
+  object-fit: cover;
+  display: block;
+}
+.link-preview-body {
+  padding: 8px 10px;
+}
+.link-preview-site {
+  font-size: calc(var(--bubble-font-size, 17px) - 5px);
+  color: var(--meta);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.link-preview-title {
+  font-size: calc(var(--bubble-font-size, 17px) - 2px);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+.bubble.sent .link-preview-title { color: #fff; }
+.link-preview-desc {
+  font-size: calc(var(--bubble-font-size, 17px) - 4px);
+  color: var(--meta);
+  line-height: 1.3;
+}
+.bubble.sent .link-preview-desc { color: rgba(255,255,255,.7); }

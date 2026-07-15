@@ -263,7 +263,16 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         bubble.appendChild(caption);
       }
     } else {
-      bubble.textContent = m.text;
+      // detect URLs and make them clickable
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      if (m.text.match(urlRegex)) {
+        bubble.innerHTML = m.text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener" class="bubble-link">$1</a>');
+        // fetch preview for the first URL
+        const firstUrl = m.text.match(urlRegex)[0];
+        fetchLinkPreview(firstUrl, bubble);
+      } else {
+        bubble.textContent = m.text;
+      }
       if (m.edited) {
         const edited = document.createElement("span");
         edited.className = "edited-tag";
@@ -850,6 +859,51 @@ function showFullImage(src) {
   overlay.appendChild(img);
   overlay.addEventListener("click", () => overlay.remove());
   document.body.appendChild(overlay);
+}
+
+/* ============================================================
+   LINK PREVIEW
+   ============================================================ */
+const previewCache = {};
+
+async function fetchLinkPreview(url, bubble) {
+  // check cache first
+  if (previewCache[url]) {
+    renderPreviewCard(previewCache[url], bubble);
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.title && !data.image) return;
+    previewCache[url] = data;
+    renderPreviewCard(data, bubble);
+  } catch (e) {
+    // silently fail — no preview
+  }
+}
+
+function renderPreviewCard(data, bubble) {
+  const card = document.createElement("a");
+  card.className = "link-preview-card";
+  card.href = data.url;
+  card.target = "_blank";
+  card.rel = "noopener";
+
+  let html = "";
+  if (data.image) {
+    html += `<img class="link-preview-img" src="${data.image}" alt="" />`;
+  }
+  html += `<div class="link-preview-body">`;
+  if (data.siteName) html += `<div class="link-preview-site">${data.siteName}</div>`;
+  if (data.title) html += `<div class="link-preview-title">${data.title}</div>`;
+  if (data.description) html += `<div class="link-preview-desc">${data.description.slice(0, 100)}${data.description.length > 100 ? "…" : ""}</div>`;
+  html += `</div>`;
+
+  card.innerHTML = html;
+  bubble.appendChild(card);
 }
 
 function scrollToMessage(msgId) {
