@@ -755,6 +755,8 @@ emoji-picker {
 }
 .reply-arrow svg {
   display: block;
+  width: var(--bubble-font-size, 17px);
+  height: var(--bubble-font-size, 17px);
 }
 .reply-arrow.arrow-left {
   transform: scaleX(-1) scaleY(-1);
@@ -1576,7 +1578,7 @@ emoji-picker {
 
 /* ---------- native embeds (Twitter/Instagram) ---------- */
 .embed-twitter, .embed-instagram {
-  margin-top: 2px;
+  margin-top: -2px;
   margin-bottom: -4px;
   border-radius: 12px;
   overflow: hidden;

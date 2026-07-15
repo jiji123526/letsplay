@@ -435,7 +435,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       bubble.classList.add("has-reply-arrow");
       const arrow = document.createElement("span");
       arrow.className = "reply-arrow";
-      arrow.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16"><path d="M14 12C14 8 11 5 7 5H3M3 5l3-3M3 5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      arrow.innerHTML = `<svg viewBox="0 0 16 16"><path d="M14 12C14 8 11 5 7 5H3M3 5l3-3M3 5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
       // determine parent side for arrow direction
       let parentSide;
       if (parentMsg) {
