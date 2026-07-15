@@ -361,6 +361,9 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         bubble.style.webkitUserSelect = "none";
         pressTimer = setTimeout(() => {
           pressTimer = null;
+          // re-enable text selection on the elevated bubble
+          bubble.style.userSelect = "text";
+          bubble.style.webkitUserSelect = "text";
           if (m.report && m.reportedMsgId && isAdmin) {
             scrollToMessage(m.reportedMsgId);
           } else if (m.dm && isAdmin) {
