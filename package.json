@@ -1,0 +1,6 @@
+{
+  "name": "letsplay",
+  "scripts": {
+    "build": "sh build.sh"
+  }
+}

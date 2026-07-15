@@ -631,6 +631,13 @@ body {
 .reaction-badge.recv {
   justify-content: flex-start;
 }
+.row.reply-row .reaction-badge {
+  padding-left: 24px;
+}
+.row.reply-row .reaction-badge.sent {
+  padding-left: 0;
+  padding-right: 24px;
+}
 .reaction-pill {
   background: var(--gray-bubble);
   border: 1px solid var(--hairline);
@@ -1472,8 +1479,8 @@ emoji-picker {
 .links-list {
   padding: 8px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .links-empty, .links-loading {
@@ -1481,6 +1488,7 @@ emoji-picker {
   text-align: center;
   color: var(--meta);
   font-size: var(--bubble-font-size, 14px);
+  grid-column: 1 / -1;
 }
 .links-card {
   display: block;
@@ -1494,7 +1502,7 @@ emoji-picker {
 .links-card:active { background: var(--hairline); }
 .links-card-img {
   width: 100%;
-  max-height: 120px;
+  max-height: 80px;
   object-fit: cover;
   display: block;
 }

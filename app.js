@@ -128,6 +128,8 @@ function showDmMenu(e, msg, bubbleEl) {
   const bubble = bubbleEl || e.currentTarget;
   bubble.classList.add("ctx-elevated");
 
+  // delay to let viewport settle after keyboard dismissal
+  requestAnimationFrame(() => { setTimeout(() => {
   const rect = bubble.getBoundingClientRect();
   const bubbleHeight = rect.bottom - rect.top;
   const gap = 8;
@@ -232,6 +234,7 @@ function showDmMenu(e, msg, bubbleEl) {
     overlay.remove();
   };
   overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closeMenu(); });
+  }, 100); });
 }
 
 function renderMessage(m, prev, next, isReply, parentMsg) {
@@ -596,7 +599,7 @@ const ICONS = {
 };
 
 function showContextMenu(e, msg, isMe, bubbleEl) {
-  // dismiss keyboard
+  // dismiss keyboard and wait for viewport to adjust
   input.blur();
   // remove any existing menu
   document.querySelector(".ctx-overlay")?.remove();
@@ -608,11 +611,12 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const bubble = bubbleEl || e.currentTarget;
   bubble.classList.add("ctx-elevated");
 
-  const container = document.createElement("div");
-  container.className = "ctx-container";
+  // delay to let viewport settle after keyboard dismissal
+  requestAnimationFrame(() => { setTimeout(() => {
+    const rect = bubble.getBoundingClientRect();
+    const container = document.createElement("div");
+    container.className = "ctx-container";
 
-  // check if there's enough space below the bubble for actions
-  const rect = bubble.getBoundingClientRect();
   const bubbleHeight = rect.bottom - rect.top;
   const gap = 8;
   const reactionBarH = 48;
@@ -725,6 +729,7 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   overlay.addEventListener("click", (ev) => {
     if (ev.target === overlay) closeMenu();
   });
+  }, 100); });
 }
 
 function deleteMessageWithReplies(msgId) {
