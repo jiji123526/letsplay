@@ -30,10 +30,11 @@ export default async function handler(req, res) {
     const title = getMetaContent("og:title") || getMetaContent("twitter:title") || "";
     const description = getMetaContent("og:description") || getMetaContent("twitter:description") || "";
     const image = getMetaContent("og:image") || getMetaContent("twitter:image") || "";
+    const video = getMetaContent("og:video") || getMetaContent("og:video:url") || getMetaContent("twitter:player:stream") || "";
     const siteName = getMetaContent("og:site_name") || "";
 
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate");
-    return res.status(200).json({ title, description, image, siteName, url });
+    return res.status(200).json({ title, description, image, video, siteName, url });
   } catch (e) {
     return res.status(500).json({ error: "Failed to fetch preview" });
   }

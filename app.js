@@ -893,7 +893,14 @@ function renderPreviewCard(data, bubble) {
   card.rel = "noopener";
 
   let html = "";
-  if (data.image) {
+  if (data.video) {
+    // render inline video player
+    html += `<video class="link-preview-video" src="${data.video}" poster="${data.image || ""}" controls playsinline preload="metadata"></video>`;
+    // prevent card link from triggering when interacting with video
+    card.addEventListener("click", (e) => {
+      if (e.target.tagName === "VIDEO") e.preventDefault();
+    });
+  } else if (data.image) {
     html += `<img class="link-preview-img" src="${data.image}" alt="" />`;
   }
   html += `<div class="link-preview-body">`;
@@ -903,6 +910,11 @@ function renderPreviewCard(data, bubble) {
   html += `</div>`;
 
   card.innerHTML = html;
+
+  // hide the original link text since preview card replaces it
+  const link = bubble.querySelector(".bubble-link");
+  if (link) link.style.display = "none";
+
   bubble.appendChild(card);
 }
 
