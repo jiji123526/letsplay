@@ -398,7 +398,7 @@ body {
   transform: translateX(-50%);
   z-index: 60;
   background: #ff3b30; color: #fff;
-  font-size: inherit; font-weight: 600;
+  font-size: var(--bubble-font-size, 17px); font-weight: 400;
   padding: 10px 16px; border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0,0,0,.25);
   max-width: 90%; text-align: center;

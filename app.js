@@ -1695,12 +1695,30 @@ function toggleSearchBar() {
 
   let debounceTimer;
   searchInput.addEventListener("input", () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => performSearch(searchInput.value.trim()), 300);
+    // clear highlights while typing (but don't search yet)
+    document.querySelectorAll(".search-match").forEach((el) => {
+      const parent = el.parentNode;
+      el.replaceWith(el.textContent);
+      if (parent) parent.normalize();
+    });
+    searchResults = [];
+    searchIndex = -1;
+    const bar = document.querySelector(".search-bar");
+    if (bar) {
+      bar.querySelector(".search-prev").disabled = true;
+      bar.querySelector(".search-next").disabled = true;
+    }
   });
 
   searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); navigateSearch(1); }
+    if (e.key === "Enter" && !e.isComposing) {
+      e.preventDefault();
+      if (searchResults.length === 0) {
+        performSearch(searchInput.value.trim());
+      } else {
+        navigateSearch(-1); // next older match
+      }
+    }
     if (e.key === "Escape") closeSearchBar();
   });
 
@@ -1782,6 +1800,8 @@ async function performSearch(query) {
   if (searchResults.length > 0) {
     searchIndex = searchResults.length - 1;
     highlightCurrent();
+  } else {
+    banner("검색 결과가 없습니다", "#666");
   }
 }
 
