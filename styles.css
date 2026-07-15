@@ -824,6 +824,7 @@ emoji-picker {
 }
 .bubble:has(.bubble-img) {
   padding: 4px;
+  padding-bottom: 0;
   overflow: visible;
 }
 .bubble-caption {
