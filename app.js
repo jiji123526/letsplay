@@ -364,7 +364,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           } else if (m.dm && isAdmin) {
             showDmMenu(e, m, targetBubble);
           } else {
-            showContextMenu(e, m, isMe, targetBubble);
+            showContextMenu(e, m, side === "sent", targetBubble);
           }
         }, 500);
       }, { passive: true });
@@ -387,7 +387,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           } else if (m.dm && isAdmin) {
             showDmMenu(e, m, targetBubble);
           } else {
-            showContextMenu(e, m, isMe, targetBubble);
+            showContextMenu(e, m, side === "sent", targetBubble);
           }
         }, 500);
       });
