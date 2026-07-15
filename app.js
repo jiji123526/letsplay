@@ -664,7 +664,11 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
 
   // delay to let viewport settle after keyboard dismissal
   requestAnimationFrame(() => { setTimeout(() => {
-    const rect = bubble.getBoundingClientRect();
+    const headerH = document.querySelector(".chat-header")?.offsetHeight || 60;
+    const noticeH = document.querySelector(".notice-banner")?.offsetHeight || 0;
+    const safeTop = headerH + noticeH + 8;
+    let rect = bubble.getBoundingClientRect();
+
     const container = document.createElement("div");
     container.className = "ctx-container";
 
@@ -678,11 +682,24 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const composerTop = composerEl.getBoundingClientRect().top;
   const normalActionY = rect.bottom + gap;
 
-  // estimate action menu height based on number of actions (will be calculated after)
-  const actionEstimate = 80; // shorter estimate for typical 2-3 items
+  const actionEstimate = 80;
 
-  // if actions would go below composer, shift bubble up
-  if (normalActionY + actionEstimate > composerTop) {
+  // check if not enough space above for reaction bar
+  const spaceAbove = rect.top - safeTop;
+  const needsDownShift = spaceAbove < reactionBarH + gap;
+
+  // check if not enough space below for actions
+  const needsUpShift = normalActionY + actionEstimate > composerTop;
+
+  if (needsDownShift && !needsUpShift) {
+    // shift bubble down so reaction bar fits below header
+    const shiftAmount = (reactionBarH + gap) - spaceAbove;
+    bubble.style.transform = `translateY(${shiftAmount}px)`;
+    bubble.style.transition = "transform .2s ease";
+    rect = { top: rect.top + shiftAmount, bottom: rect.bottom + shiftAmount, left: rect.left, right: rect.right };
+    actionY = rect.bottom + gap;
+    reactionY = rect.top - gap - reactionBarH;
+  } else if (needsUpShift) {
     const availableForActions = composerTop - gap;
     const targetBubbleBottom = availableForActions - actionEstimate - gap;
     const targetBubbleTop = targetBubbleBottom - bubbleHeight;
