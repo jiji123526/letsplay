@@ -196,7 +196,7 @@ body {
 }
 
 .bubble.tail.sent::before {
-  right: -6px;
+  right: -5px;
   background: #3b8df0;
   border-bottom-left-radius: 14px 12px;
 }
@@ -206,7 +206,7 @@ body {
 }
 
 .bubble.tail.recv::before {
-  left: -6px;
+  left: -5px;
   background: var(--gray-bubble);
   border-bottom-right-radius: 13px 11px;
 }
