@@ -148,7 +148,11 @@ function showDmMenu(e, msg, bubbleEl) {
   const moreBtn = document.createElement("button");
   moreBtn.className = "ctx-reaction-btn ctx-reaction-more";
   moreBtn.textContent = "+";
-  moreBtn.addEventListener("click", (ev) => { closeMenu(); showEmojiPicker(ev, msg); });
+  moreBtn.addEventListener("click", (ev) => {
+    const bubbleRect = bubble.getBoundingClientRect();
+    closeMenu();
+    showEmojiPicker(ev, msg, bubbleRect);
+  });
   reactionBar.appendChild(moreBtn);
   container.appendChild(reactionBar);
 
@@ -609,8 +613,9 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   moreBtn.className = "ctx-reaction-btn ctx-reaction-more";
   moreBtn.textContent = "+";
   moreBtn.addEventListener("click", (e) => {
+    const bubbleRect = bubble.getBoundingClientRect();
     closeMenu();
-    showEmojiPicker(e, msg);
+    showEmojiPicker(e, msg, bubbleRect);
   });
   reactionBar.appendChild(moreBtn);
   container.appendChild(reactionBar);
@@ -796,7 +801,7 @@ async function unreportMessage(msg) {
   banner("신고가 취소되었습니다");
 }
 
-function showEmojiPicker(e, msg) {
+function showEmojiPicker(e, msg, bubbleRect) {
   document.querySelector(".emoji-picker-wrap")?.remove();
 
   const wrap = document.createElement("div");
@@ -811,14 +816,14 @@ function showEmojiPicker(e, msg) {
   wrap.appendChild(picker);
   document.body.appendChild(wrap);
 
-  // position near the clicked button
-  const rect = e.target.getBoundingClientRect();
+  // position based on the bubble's location
   const pickerH = 320;
   const pickerW = 300;
+  const rect = bubbleRect || (e.target && e.target.getBoundingClientRect()) || { top: window.innerHeight / 2, left: window.innerWidth / 2, bottom: window.innerHeight / 2 };
 
-  // try to show above the button; if no room, show below
   let top = rect.top - pickerH - 8;
   if (top < 10) top = rect.bottom + 8;
+  if (top + pickerH > window.innerHeight - 10) top = window.innerHeight - pickerH - 10;
   let left = Math.min(rect.left, window.innerWidth - pickerW - 10);
   if (left < 10) left = 10;
 
