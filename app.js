@@ -1258,9 +1258,9 @@ photoInput.addEventListener("change", async () => {
     dataUrl = await compressImage(file, 800, 0.7);
   }
 
-  // check size limit (~700KB raw = ~1MB base64 = Firestore limit)
-  if (dataUrl.length > 900000) {
-    banner("움짤되게하는중 쫌만기달ㅜ");
+  // check size limit (50MB max for Supabase Storage)
+  if (dataUrl.length > 50 * 1024 * 1024) {
+    banner("파일이 너무 큽니다 (최대 50MB)");
     return;
   }
 

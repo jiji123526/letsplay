@@ -73,7 +73,11 @@ export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, 
   const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, created_at: new Date().toISOString() };
   if (replyTo) row.reply_to = replyTo;
   if (report) { row.report = true; row.reported_msg_id = reportedMsgId || null; }
-  if (image) row.image = image;
+  if (image) {
+    // upload image to storage and store URL
+    const imageUrl = await uploadImage(image);
+    row.image = imageUrl;
+  }
   if (dm) row.dm = true;
   if (galleryId) row.gallery_id = galleryId;
   const { error } = await supabase.from("messages").insert(row);
@@ -157,7 +161,10 @@ export async function unblockUser(uid) {
 export async function sendDm({ uid, nick, text, image }) {
   const authUid = currentUser.id;
   const row = { uid, auth_uid: authUid, nick, text, created_at: new Date().toISOString() };
-  if (image) row.image = image;
+  if (image) {
+    const imageUrl = await uploadImage(image);
+    row.image = imageUrl;
+  }
   await supabase.from("dm").insert(row);
 }
 
@@ -190,9 +197,31 @@ async function fetchDm() {
   }));
 }
 
-/* ---- Gallery ---- */
-export async function saveToGallery(image) {
-  const { data, error } = await supabase.from("gallery").insert({ image }).select("id").single();
+/* ---- Gallery (uses Supabase Storage for files) ---- */
+
+async function uploadImage(dataUrl) {
+  // convert base64 data URL to blob
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const ext = blob.type === "image/gif" ? "gif" : "jpg";
+  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const filePath = `photos/${fileName}`;
+
+  const { error } = await supabase.storage.from("media").upload(filePath, blob, {
+    contentType: blob.type,
+    cacheControl: "3600",
+  });
+  if (error) throw error;
+
+  // get public URL
+  const { data } = supabase.storage.from("media").getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+export async function saveToGallery(imageDataUrl) {
+  // upload to storage, save URL in gallery table
+  const imageUrl = await uploadImage(imageDataUrl);
+  const { data, error } = await supabase.from("gallery").insert({ image: imageUrl }).select("id").single();
   if (error) throw error;
   return data.id;
 }
@@ -220,6 +249,12 @@ async function fetchGallery() {
 }
 
 export async function removeFromGallery(id) {
+  // get the image URL to delete from storage too
+  const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
+  if (data && data.image) {
+    const path = data.image.split("/media/")[1];
+    if (path) await supabase.storage.from("media").remove([path]);
+  }
   await supabase.from("gallery").delete().eq("id", id);
 }
 

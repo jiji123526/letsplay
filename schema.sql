@@ -96,3 +96,15 @@ alter publication supabase_realtime add table config;
 
 -- Full-text search index on messages
 create index messages_text_search on messages using gin(to_tsvector('simple', text));
+
+-- ============================================================
+-- Storage Setup (run separately or via Dashboard)
+-- Dashboard → Storage → New bucket → name: "media" → Public: ON
+-- ============================================================
+-- If using SQL:
+insert into storage.buckets (id, name, public) values ('media', 'media', true);
+
+-- Storage policy: allow authenticated users to upload/read/delete
+create policy "Allow authenticated upload" on storage.objects for insert to authenticated with check (bucket_id = 'media');
+create policy "Allow public read" on storage.objects for select using (bucket_id = 'media');
+create policy "Allow authenticated delete" on storage.objects for delete to authenticated using (bucket_id = 'media');
