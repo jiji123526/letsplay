@@ -802,7 +802,7 @@ emoji-picker {
   width: 200px;
   height: 150px;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: 15px;
 }
 .bubble-img-expand {
   position: absolute;
@@ -827,7 +827,7 @@ emoji-picker {
   overflow: visible;
 }
 .bubble-caption {
-  padding: 4px 8px 2px;
+  padding: 2px 10px 8px;
   font-size: var(--bubble-font-size, 17px);
 }
 
@@ -1251,7 +1251,7 @@ emoji-picker {
 .bubble.sent .bubble-link { color: rgba(255,255,255,.9); }
 .link-preview-card {
   display: block;
-  margin-top: 8px;
+  margin-top: 0;
   border-radius: 12px;
   overflow: hidden;
   background: rgba(0,0,0,.05);
