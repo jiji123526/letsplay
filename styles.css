@@ -405,6 +405,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  left: auto;
+  right: auto;
   animation: ctxPop .2s ease;
   user-select: none;
   -webkit-user-select: none;

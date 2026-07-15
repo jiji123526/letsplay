@@ -558,10 +558,12 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
 
   // position reactions above - align to same side as bubble
   if (isMe) {
+    container.style.left = "auto";
     container.style.right = `${window.innerWidth - rect.right}px`;
     container.style.top = `${reactionY}px`;
     container.style.alignItems = "flex-end";
   } else {
+    container.style.right = "auto";
     container.style.left = `${rect.left}px`;
     container.style.top = `${reactionY}px`;
     container.style.alignItems = "flex-start";
@@ -596,10 +598,12 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   actionContainer.className = "ctx-actions-wrap";
   if (isMe) {
     actionContainer.style.position = "fixed";
+    actionContainer.style.left = "auto";
     actionContainer.style.right = `${window.innerWidth - rect.right}px`;
     actionContainer.style.top = `${actionY}px`;
   } else {
     actionContainer.style.position = "fixed";
+    actionContainer.style.right = "auto";
     actionContainer.style.left = `${rect.left}px`;
     actionContainer.style.top = `${actionY}px`;
   }
