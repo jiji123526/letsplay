@@ -5,10 +5,9 @@ export default defineConfig({
     outDir: "dist",
     minify: "esbuild",
     target: "es2022",
+    sourcemap: false,
     rollupOptions: {
       output: {
-        // merge everything into one file so passcode isn't in a separate chunk
-        manualChunks: undefined,
         inlineDynamicImports: true,
       },
     },
