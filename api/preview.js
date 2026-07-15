@@ -6,6 +6,24 @@ export default async function handler(req, res) {
   }
 
   try {
+    // YouTube: extract video ID and return preview without fetching
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) {
+      const videoId = ytMatch[1];
+      // use noembed.com to get YouTube title (no CORS/block issues)
+      const oembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+      const oembedData = await oembed.json();
+      res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate");
+      return res.status(200).json({
+        title: oembedData.title || "",
+        description: oembedData.author_name || "",
+        image: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        video: "",
+        siteName: "YouTube",
+        url,
+      });
+    }
+
     // For Twitter/X, use fxtwitter for better OG tags
     let fetchUrl = url;
     if (url.match(/https?:\/\/(twitter\.com|x\.com)\//)) {
@@ -13,7 +31,10 @@ export default async function handler(req, res) {
     }
 
     const response = await fetch(fetchUrl, {
-      headers: { "User-Agent": "bot" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html",
+      },
       redirect: "follow",
     });
 
