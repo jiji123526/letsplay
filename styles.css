@@ -1576,7 +1576,8 @@ emoji-picker {
 
 /* ---------- native embeds (Twitter/Instagram) ---------- */
 .embed-twitter, .embed-instagram {
-  margin-top: 6px;
+  margin-top: 2px;
+  margin-bottom: -4px;
   border-radius: 12px;
   overflow: hidden;
   max-width: 100%;
