@@ -32,6 +32,7 @@ let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
 let galleryItems = [];           // gallery photos
+let initialLoad = true;          // force scroll to bottom for first 3 seconds
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
 function saveReportedIds() {
@@ -43,7 +44,7 @@ function saveReportedIds() {
    ============================================================ */
 function render() {
   // check if user is near the bottom before re-rendering
-  const shouldAutoScroll = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50;
+  const shouldAutoScroll = initialLoad || messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50;
 
   messagesEl.innerHTML = "";
 
@@ -1596,6 +1597,8 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
+  // force scroll to bottom for first 3 seconds while data loads
+  setTimeout(() => { initialLoad = false; }, 3000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
@@ -1634,8 +1637,6 @@ function startChat() {
   });
   toggleSend();
   renderNoticeBanner();
-  // scroll to bottom on initial load
-  setTimeout(() => { messagesEl.scrollTop = messagesEl.scrollHeight; }, 100);
 }
 
 /* small non-blocking error banner */
