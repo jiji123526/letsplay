@@ -666,11 +666,14 @@ body {
   background: var(--gray-bubble);
   border: 1px dashed var(--hairline);
   border-radius: 14px;
-  padding: 3px 8px;
+  padding: 3px 10px;
   font-size: calc(var(--bubble-font-size, 17px) - 3px);
+  min-height: 26px;
+  min-width: 36px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   color: var(--meta);
   transition: background .15s;
 }

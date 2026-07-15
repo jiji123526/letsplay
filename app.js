@@ -488,7 +488,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       // add reaction button (opens emoji picker)
       const addBtn = document.createElement("button");
       addBtn.className = "reaction-add-btn";
-      addBtn.textContent = "☺+";
+      addBtn.textContent = "+";
       addBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         showEmojiPicker(e, m);
@@ -834,6 +834,8 @@ function showEmojiPicker(e, msg, bubbleRect) {
   wrap.className = "emoji-picker-wrap";
 
   const picker = document.createElement("emoji-picker");
+  picker.setAttribute("locale", "ko");
+  picker.setAttribute("data-source", "https://cdn.jsdelivr.net/npm/emoji-picker-element-data/ko/cldr/data.json");
   picker.addEventListener("emoji-click", (ev) => {
     addReaction(msg.id, ev.detail.unicode);
     wrap.remove();
