@@ -1,25 +1,18 @@
 /* ============================================================
    Backend abstraction
    ------------------------------------------------------------
-   app.js talks ONLY to this module, never to Firebase directly.
-   It exposes one small interface, backed by either:
-     • a local mock (localStorage) when USE_MOCK === true
-     • real Firebase (Firestore + Anonymous Auth) otherwise
-
-   Interface:
-     initAuth()                  -> Promise<uid>
-     subscribe(cb)               cb(messages[])  on every change
-     sendMessage({uid,nick,text,is_admin})
-     removeMessage(id)
-   Message object: { id, uid, nick, text, is_admin, createdAt:Date }
+   app.js talks ONLY to this module. It loads the correct
+   backend based on the BACKEND setting in config.js.
    ============================================================ */
 
-import { USE_MOCK } from "./firebase-config.js";
+import { BACKEND, USE_MOCK } from "./config.js";
 
 let impl;
 
-if (USE_MOCK) {
+if (USE_MOCK || BACKEND === "mock") {
   impl = await import("./mock-backend.js");
+} else if (BACKEND === "supabase") {
+  impl = await import("./supabase-backend.js");
 } else {
   impl = await import("./firebase-backend.js");
 }
@@ -44,4 +37,5 @@ export const subscribeGallery   = impl.subscribeGallery;
 export const removeFromGallery  = impl.removeFromGallery;
 export const setNotice          = impl.setNotice;
 export const subscribeNotice    = impl.subscribeNotice;
-export const IS_MOCK            = USE_MOCK;
+export const searchMessages     = impl.searchMessages || (async () => []);
+export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

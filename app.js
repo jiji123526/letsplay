@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, IS_MOCK } from "./backend.js";
-import { ADMIN_PASSCODE } from "./firebase-config.js";
+import { ADMIN_PASSCODE } from "./config.js";
 import "https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js";
 
 const $ = (s) => document.querySelector(s);
