@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, IS_MOCK } from "./backend.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, IS_MOCK } from "./backend.js";
 import { ADMIN_PASSCODE } from "./config.js";
 import "https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js";
 
@@ -21,7 +21,19 @@ const messagesEl = $("#messages");
   const savedSize = localStorage.getItem("fontSize");
   if (savedSize) document.documentElement.style.setProperty("--bubble-font-size", `${savedSize}px`);
   const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+  if (savedTheme) {
+    document.documentElement.dataset.theme = savedTheme;
+  } else {
+    // follow device setting
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = prefersDark ? "dark" : "light";
+  }
+  // listen for device theme changes
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    if (!localStorage.getItem("theme")) {
+      document.documentElement.dataset.theme = e.matches ? "dark" : "light";
+    }
+  });
 })();
 
 /* ---------- local state ---------- */
@@ -105,6 +117,8 @@ function render() {
 }
 
 function showDmMenu(e, msg, bubbleEl) {
+  // dismiss keyboard
+  input.blur();
   document.querySelector(".ctx-overlay")?.remove();
 
   const overlay = document.createElement("div");
@@ -582,6 +596,8 @@ const ICONS = {
 };
 
 function showContextMenu(e, msg, isMe, bubbleEl) {
+  // dismiss keyboard
+  input.blur();
   // remove any existing menu
   document.querySelector(".ctx-overlay")?.remove();
 
@@ -1348,6 +1364,85 @@ function showGallery() {
 }
 
 /* ============================================================
+   LINKS PANEL — shows all shared links with previews
+   ============================================================ */
+function showLinks() {
+  document.querySelector(".links-panel")?.remove();
+
+  // extract all URLs from messages
+  const urlRegex = /(https?:\/\/[^\s]+|(?:www\.|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|dev|app|co|me|tv|gg|xyz|kr|jp))[^\s]*)/g;
+  const links = [];
+  allMessages.forEach((m) => {
+    if (m.text) {
+      const matches = m.text.match(urlRegex);
+      if (matches) {
+        matches.forEach((url) => {
+          const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+          links.push({ url: fullUrl, date: m.createdAt });
+        });
+      }
+    }
+  });
+
+  // deduplicate by URL, keep most recent
+  const seen = new Map();
+  links.forEach((l) => { if (!seen.has(l.url)) seen.set(l.url, l); });
+  const uniqueLinks = [...seen.values()].reverse(); // newest first
+
+  const panel = document.createElement("div");
+  panel.className = "links-panel";
+
+  panel.innerHTML = `
+    <div class="links-panel-content">
+      <div class="links-panel-header">
+        <h3><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 링크</h3>
+        <button class="links-panel-close">✕</button>
+      </div>
+      <div class="links-list" id="linksList">
+        ${uniqueLinks.length === 0 ? '<div class="links-empty">공유된 링크가 없습니다</div>' : '<div class="links-loading">로딩 중...</div>'}
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".links-panel-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  document.body.appendChild(panel);
+
+  // fetch previews for each link
+  if (uniqueLinks.length > 0) {
+    const listEl = panel.querySelector("#linksList");
+    listEl.innerHTML = "";
+    uniqueLinks.forEach(async (link) => {
+      const card = document.createElement("a");
+      card.className = "links-card";
+      card.href = link.url;
+      card.target = "_blank";
+      card.rel = "noopener";
+      card.innerHTML = `<div class="links-card-url">${link.url}</div>`;
+      listEl.appendChild(card);
+
+      // try to fetch preview
+      try {
+        const res = await fetch(`/api/preview?url=${encodeURIComponent(link.url)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.title || data.image) {
+            let html = "";
+            if (data.image) html += `<img class="links-card-img" src="${data.image}" />`;
+            html += `<div class="links-card-body">`;
+            if (data.siteName) html += `<div class="links-card-site">${data.siteName}</div>`;
+            if (data.title) html += `<div class="links-card-title">${data.title}</div>`;
+            html += `</div>`;
+            card.innerHTML = html;
+          }
+        }
+      } catch (e) { /* keep URL fallback */ }
+    });
+  }
+}
+
+/* ============================================================
    ADMIN TOGGLE — long press header avatar to toggle admin mode
    ============================================================ */
 function refilterMessages() {
@@ -1448,6 +1543,177 @@ function showNoticePanel() {
   document.body.appendChild(panel);
 }
 
+/* ============================================================
+   SEARCH — find messages with navigation arrows
+   ============================================================ */
+let searchResults = [];
+let searchIndex = -1;
+
+document.querySelector(".hdr-search")?.addEventListener("click", () => {
+  toggleSearchBar();
+});
+
+function toggleSearchBar() {
+  const existing = document.querySelector(".search-bar");
+  if (existing) { closeSearchBar(); return; }
+
+  const bar = document.createElement("div");
+  bar.className = "search-bar";
+  bar.innerHTML = `
+    <input class="search-input" type="text" placeholder="검색..." autocomplete="off" />
+    <button class="search-nav-btn search-prev" aria-label="Previous">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="search-nav-btn search-next" aria-label="Next">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="search-close-btn">✕</button>
+  `;
+
+  document.querySelector(".chat-header").insertAdjacentElement("afterend", bar);
+
+  const searchInput = bar.querySelector(".search-input");
+  
+  const prevBtn = bar.querySelector(".search-prev");
+  const nextBtn = bar.querySelector(".search-next");
+
+  searchInput.focus();
+
+  let debounceTimer;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => performSearch(searchInput.value.trim()), 300);
+  });
+
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); navigateSearch(1); }
+    if (e.key === "Escape") closeSearchBar();
+  });
+
+  prevBtn.addEventListener("click", () => navigateSearch(-1));
+  nextBtn.addEventListener("click", () => navigateSearch(1));
+  bar.querySelector(".search-close-btn").addEventListener("click", closeSearchBar);
+}
+
+function closeSearchBar() {
+  document.querySelector(".search-bar")?.remove();
+  // clear highlights
+  document.querySelectorAll(".search-match").forEach((el) => {
+    el.replaceWith(el.textContent);
+  });
+  searchResults = [];
+  searchIndex = -1;
+}
+
+async function performSearch(query) {
+  // clear previous highlights
+  document.querySelectorAll(".search-match").forEach((el) => {
+    el.replaceWith(el.textContent);
+  });
+  searchResults = [];
+  searchIndex = -1;
+
+  if (!query) return;
+
+  // search raw message data (works even for hidden link text)
+  const queryLower = query.toLowerCase();
+  messages.forEach((m) => {
+    if (m.text && m.text.toLowerCase().includes(queryLower)) {
+      const row = document.getElementById(`msg-${m.id}`);
+      if (row) {
+        const bubble = row.querySelector(".bubble");
+        if (bubble) {
+          highlightTextInBubble(bubble, query);
+          searchResults.push(row);
+        }
+      }
+    }
+  });
+
+  // if no local results, try server-side search
+  if (searchResults.length === 0 && !IS_MOCK) {
+    try {
+      const serverResults = await searchMessages(query);
+      if (serverResults.length > 0) {
+        // load these messages into the view
+        const newMsgs = serverResults.filter((m) => !allMessages.find((a) => a.id === m.id));
+        if (newMsgs.length > 0) {
+          allMessages = [...newMsgs, ...allMessages];
+          allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          refilterMessages();
+          render();
+          // re-search locally now that messages are loaded
+          messages.forEach((m) => {
+            if (m.text && m.text.toLowerCase().includes(queryLower)) {
+              const row = document.getElementById(`msg-${m.id}`);
+              if (row) {
+                const bubble = row.querySelector(".bubble");
+                if (bubble) {
+                  highlightTextInBubble(bubble, query);
+                  searchResults.push(row);
+                }
+              }
+            }
+          });
+        }
+      }
+    } catch (e) { /* server search failed, stay with no results */ }
+  }
+
+  // results are in DOM order (old → new), start at the last one (newest)
+  if (searchResults.length > 0) {
+    searchIndex = searchResults.length - 1;
+    highlightCurrent();
+  }
+}
+
+function highlightTextInBubble(bubble, query) {
+  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, "gi");
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach((node) => {
+    if (regex.test(node.textContent)) {
+      const span = document.createElement("span");
+      span.innerHTML = node.textContent.replace(regex, '<mark class="search-match">$1</mark>');
+      node.replaceWith(span);
+    }
+  });
+}
+
+function navigateSearch(direction) {
+  if (searchResults.length === 0) return;
+  // remove current active marker
+  searchResults[searchIndex]?.querySelector(".search-active")?.classList.remove("search-active");
+
+  // direction: -1 = up arrow = older (lower index), +1 = down arrow = newer (higher index)
+  searchIndex += direction;
+  if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
+  if (searchIndex < 0) searchIndex = 0;
+
+  highlightCurrent();
+}
+
+function highlightCurrent() {
+  const row = searchResults[searchIndex];
+  if (!row) return;
+  // mark current match as active
+  const match = row.querySelector(".search-match");
+  if (match) match.classList.add("search-active");
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  // update arrow button states
+  // up (prev/older) disabled at index 0, down (next/newer) disabled at last index
+  const bar = document.querySelector(".search-bar");
+  if (bar) {
+    const prevBtn = bar.querySelector(".search-prev");
+    const nextBtn = bar.querySelector(".search-next");
+    prevBtn.disabled = searchIndex <= 0;
+    nextBtn.disabled = searchIndex >= searchResults.length - 1;
+  }
+}
+
 document.querySelector(".hdr-menu")?.addEventListener("click", (e) => {
   showHeaderMenu(e);
 });
@@ -1460,10 +1726,12 @@ function showHeaderMenu(e) {
   menu.innerHTML = `
     <button class="header-menu-item" data-action="settings"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></svg> 설정</button>
     <button class="header-menu-item" data-action="gallery"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 갤러리</button>
+    <button class="header-menu-item" data-action="links"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 링크</button>
   `;
 
   menu.querySelector('[data-action="settings"]').addEventListener("click", () => { menu.remove(); showSettingsPanel(); });
   menu.querySelector('[data-action="gallery"]').addEventListener("click", () => { menu.remove(); showGallery(); });
+  menu.querySelector('[data-action="links"]').addEventListener("click", () => { menu.remove(); showLinks(); });
 
   // position below the menu button
   const rect = document.querySelector(".hdr-menu").getBoundingClientRect();
@@ -1647,6 +1915,26 @@ function startChat() {
   });
   toggleSend();
   renderNoticeBanner();
+
+  // load more messages when scrolling to top
+  let loadingMore = false;
+  messagesEl.addEventListener("scroll", async () => {
+    if (messagesEl.scrollTop < 50 && !loadingMore && messages.length > 0) {
+      const oldest = messages.find((m) => m.createdAt);
+      if (!oldest || !oldest.createdAt) return;
+      loadingMore = true;
+      const older = await loadMoreMessages(oldest.createdAt.toISOString());
+      if (older.length > 0) {
+        const prevHeight = messagesEl.scrollHeight;
+        allMessages = [...older, ...allMessages];
+        refilterMessages();
+        render();
+        // maintain scroll position
+        messagesEl.scrollTop = messagesEl.scrollHeight - prevHeight;
+      }
+      loadingMore = false;
+    }
+  });
 }
 
 /* small non-blocking error banner */

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Firebase → Supabase Migration</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    h1 { font-size: 20px; }
+    .log { background: #f5f5f5; padding: 12px; border-radius: 8px; font-size: 13px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    button { padding: 12px 24px; font-size: 16px; border: none; background: #3b8df0; color: #fff; border-radius: 8px; cursor: pointer; margin: 8px 4px; }
+    button:disabled { background: #ccc; }
+    .done { color: green; font-weight: bold; }
+    .err { color: red; }
+  </style>
+</head>
+<body>
+  <h1>🔄 Firebase → Supabase Migration</h1>
+  <p>This will copy all data from Firebase to Supabase. Run once.</p>
+  <button id="startBtn">Start Migration</button>
+  <div class="log" id="log"></div>
+
+  <script type="module">
+    // --- Firebase ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    // --- Supabase ---
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    // ============ CONFIG - EDIT THESE ============
+    const firebaseConfig = {
+      apiKey: "AIzaSyCjDPXcwiKHdzC5nbEwS7tRnY3xj9BlsZU",
+      authDomain: "playground-4a5b2.firebaseapp.com",
+      projectId: "playground-4a5b2",
+      storageBucket: "playground-4a5b2.firebasestorage.app",
+      messagingSenderId: "13988513328",
+      appId: "1:13988513328:web:cae8a378bd7ce958be8ff5",
+    };
+
+    const SUPABASE_URL = "https://wpwlqpkawssrywlqgncg.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indwd2xxcGthd3Nzcnl3bHFnbmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzE0MzAsImV4cCI6MjA5OTcwNzQzMH0.de5Jqfs97oOrIddr3yS1k3rQE2DaowYsHH40KKAXTYY";
+    // =============================================
+
+    const logEl = document.getElementById("log");
+    function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      document.getElementById("startBtn").disabled = true;
+
+      try {
+        // auth into both
+        log("🔐 Signing into Firebase...");
+        await signInAnonymously(auth);
+        log("🔐 Signing into Supabase...");
+        const { error: authErr } = await supabase.auth.signInAnonymously();
+        if (authErr) throw authErr;
+        log("✅ Auth done\n");
+
+        // --- Gallery ---
+        log("🖼 Migrating gallery...");
+        const gallerySnap = await getDocs(collection(db, "gallery"));
+        let galleryCount = 0;
+        const galleryIdMap = {}; // old Firebase ID → new Supabase ID
+        for (const doc of gallerySnap.docs) {
+          const d = doc.data();
+          if (d.image) {
+            // if image is base64, upload to Supabase Storage
+            let imageUrl = d.image;
+            if (d.image.startsWith("data:")) {
+              try {
+                const res = await fetch(d.image);
+                const blob = await res.blob();
+                const ext = blob.type === "image/gif" ? "gif" : "jpg";
+                const fileName = `migrated_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+                const { error: upErr } = await supabase.storage.from("media").upload(`photos/${fileName}`, blob, { contentType: blob.type });
+                if (upErr) { log(`  ⚠️ Storage upload error: ${upErr.message}`); continue; }
+                const { data: urlData } = supabase.storage.from("media").getPublicUrl(`photos/${fileName}`);
+                imageUrl = urlData.publicUrl;
+              } catch (e) { log(`  ⚠️ Image upload failed: ${e.message}`); continue; }
+            }
+            const { data: inserted, error } = await supabase.from("gallery").insert({ image: imageUrl }).select("id").single();
+            if (error) log(`  ⚠️ Gallery error: ${error.message}`);
+            else {
+              galleryIdMap[doc.id] = inserted.id;
+              galleryCount++;
+            }
+          }
+        }
+        log(`✅ ${galleryCount} gallery items migrated\n`);
+
+        // --- Messages (two-pass: insert first, then update reply_to) ---
+        log("📨 Migrating messages (pass 1: insert)...");
+        const msgSnap = await getDocs(query(collection(db, "messages"), orderBy("createdAt", "asc")));
+        let msgCount = 0;
+        const msgIdMap = {}; // old Firebase doc ID → new Supabase UUID
+        for (const doc of msgSnap.docs) {
+          const d = doc.data();
+          const row = {
+            uid: d.uid || "",
+            auth_uid: d.authUid || d.uid || "",
+            nick: d.nick || "",
+            text: d.text || "",
+            is_admin: !!d.is_admin,
+            report: !!d.report,
+            reported_msg_id: null,
+            gallery_id: d.galleryId ? (galleryIdMap[d.galleryId] || null) : null,
+            dm: !!d.dm,
+            deleted: !!d.deleted,
+            edited: !!d.edited,
+            reported: !!d.reported,
+            reactions: d.reactions || {},
+            image: d.image || null,
+            created_at: d.createdAt?.toDate?.() ? d.createdAt.toDate().toISOString() : new Date().toISOString(),
+          };
+          const { data: inserted, error } = await supabase.from("messages").insert(row).select("id").single();
+          if (error) log(`  ⚠️ Message error: ${error.message}`);
+          else {
+            msgIdMap[doc.id] = inserted.id;
+            msgCount++;
+          }
+        }
+        log(`✅ ${msgCount} messages inserted\n`);
+
+        // Pass 2: update reply_to and reported_msg_id with new IDs
+        log("📨 Migrating messages (pass 2: linking replies)...");
+        let linkCount = 0;
+        for (const doc of msgSnap.docs) {
+          const d = doc.data();
+          const newId = msgIdMap[doc.id];
+          if (!newId) continue;
+          const updates = {};
+          if (d.replyTo && msgIdMap[d.replyTo]) updates.reply_to = msgIdMap[d.replyTo];
+          if (d.reportedMsgId && msgIdMap[d.reportedMsgId]) updates.reported_msg_id = msgIdMap[d.reportedMsgId];
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("messages").update(updates).eq("id", newId);
+            linkCount++;
+          }
+        }
+        log(`✅ ${linkCount} replies/reports linked\n`);
+
+        // --- Config/Notice ---
+        log("📢 Migrating notice...");
+        const configSnap = await getDocs(collection(db, "config"));
+        for (const doc of configSnap.docs) {
+          if (doc.id === "notice") {
+            const d = doc.data();
+            const { error } = await supabase.from("config").upsert({ id: "notice", text: d.text || "" });
+            if (error) log(`  ⚠️ Notice error: ${error.message}`);
+            else log("✅ Notice migrated\n");
+          }
+        }
+
+        log("\n🎉 MIGRATION COMPLETE!");
+        log("You can now switch to Supabase backend.");
+
+      } catch (e) {
+        log(`\n❌ ERROR: ${e.message}`);
+      }
+    });
+  </script>
+</body>
+</html>

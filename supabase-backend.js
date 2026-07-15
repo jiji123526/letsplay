@@ -43,8 +43,18 @@ async function fetchMessages() {
     .from("messages")
     .select("*")
     .order("created_at", { ascending: true })
-    .limit(500);
+    .limit(2000);
   return (data || []).map(formatMessage);
+}
+
+export async function loadMoreMessages(beforeDate) {
+  const { data } = await supabase
+    .from("messages")
+    .select("*")
+    .lt("created_at", beforeDate)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  return (data || []).reverse().map(formatMessage);
 }
 
 function formatMessage(row) {
@@ -55,6 +65,7 @@ function formatMessage(row) {
     nick: row.nick,
     text: row.text,
     is_admin: row.is_admin,
+    image: row.image || null,
     replyTo: row.reply_to,
     report: row.report,
     reportedMsgId: row.reported_msg_id,
