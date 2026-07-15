@@ -104,12 +104,35 @@ function showDmMenu(e, msg, bubbleEl) {
   bubble.classList.add("ctx-elevated");
 
   const rect = bubble.getBoundingClientRect();
+  const bubbleHeight = rect.bottom - rect.top;
+  const gap = 8;
+  const reactionBarH = 48;
+
+  let actionY, reactionY;
+
+  const composerEl = document.querySelector(".composer");
+  const composerTop = composerEl.getBoundingClientRect().top;
+  const normalActionY = rect.bottom + gap;
+
+  if (normalActionY + 130 > composerTop) {
+    const availableForActions = composerTop - gap;
+    const targetBubbleBottom = availableForActions - 130 - gap;
+    const targetBubbleTop = targetBubbleBottom - bubbleHeight;
+    const shiftAmount = rect.top - targetBubbleTop;
+    bubble.style.transform = `translateY(-${shiftAmount}px)`;
+    bubble.style.transition = "transform .2s ease";
+    actionY = targetBubbleBottom + gap;
+    reactionY = targetBubbleTop - gap - reactionBarH;
+  } else {
+    actionY = normalActionY;
+    reactionY = rect.top - gap - reactionBarH;
+  }
 
   // reactions above
   const container = document.createElement("div");
   container.className = "ctx-container";
   container.style.left = `${rect.left}px`;
-  container.style.top = `${rect.top - 56}px`;
+  container.style.top = `${reactionY}px`;
   container.style.alignItems = "flex-start";
 
   const reactionBar = document.createElement("div");
@@ -133,7 +156,7 @@ function showDmMenu(e, msg, bubbleEl) {
   actionContainer.className = "ctx-actions-wrap";
   actionContainer.style.position = "fixed";
   actionContainer.style.left = `${rect.left}px`;
-  actionContainer.style.top = `${rect.bottom + 8}px`;
+  actionContainer.style.top = `${actionY}px`;
 
   const actionList = document.createElement("div");
   actionList.className = "ctx-actions";
@@ -162,6 +185,8 @@ function showDmMenu(e, msg, bubbleEl) {
 
   const closeMenu = () => {
     bubble.classList.remove("ctx-elevated");
+    bubble.style.transform = "";
+    bubble.style.transition = "";
     overlay.remove();
   };
   overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closeMenu(); });
@@ -264,13 +289,19 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       }
     } else {
       // detect URLs and make them clickable
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urlRegex = /(https?:\/\/[^\s]+|(?:www\.|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|dev|app|co|me|tv|gg|xyz|kr|jp))[^\s]*)/g;
       if (m.text.match(urlRegex)) {
         const urls = m.text.match(urlRegex);
-        // render text with clickable links
-        bubble.innerHTML = m.text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener" class="bubble-link">$1</a>');
+        // render text with clickable links (add https:// if missing)
+        bubble.innerHTML = m.text.replace(urlRegex, (match) => {
+          const href = match.startsWith("http") ? match : `https://${match}`;
+          return `<a href="${href}" target="_blank" rel="noopener" class="bubble-link">${match}</a>`;
+        });
         // fetch preview for all URLs
-        urls.forEach((url) => fetchLinkPreview(url, bubble));
+        urls.forEach((url) => {
+          const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+          fetchLinkPreview(fullUrl, bubble);
+        });
       } else {
         bubble.textContent = m.text;
       }
@@ -494,15 +525,42 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const container = document.createElement("div");
   container.className = "ctx-container";
 
-  // position reactions/actions relative to the original bubble
+  // check if there's enough space below the bubble for actions
   const rect = bubble.getBoundingClientRect();
+  const bubbleHeight = rect.bottom - rect.top;
+  const gap = 8;
+  const reactionBarH = 48;
+
+  let actionY, reactionY;
+
+  const composerEl = document.querySelector(".composer");
+  const composerTop = composerEl.getBoundingClientRect().top;
+  const normalActionY = rect.bottom + gap;
+
+  // if actions would go below composer, shift bubble up
+  if (normalActionY + 130 > composerTop) {
+    // position bubble so that: bubble bottom + gap + action height fits above composer
+    const availableForActions = composerTop - gap; // max bottom for actions
+    const targetBubbleBottom = availableForActions - 130 - gap; // bubble bottom = composer - gap - actions - gap
+    const targetBubbleTop = targetBubbleBottom - bubbleHeight;
+    const shiftAmount = rect.top - targetBubbleTop;
+    bubble.style.transform = `translateY(-${shiftAmount}px)`;
+    bubble.style.transition = "transform .2s ease";
+    actionY = targetBubbleBottom + gap;
+    reactionY = targetBubbleTop - gap - reactionBarH;
+  } else {
+    actionY = normalActionY;
+    reactionY = rect.top - gap - reactionBarH;
+  }
+
+  // position reactions above
   if (isMe) {
     container.style.right = `${window.innerWidth - rect.right}px`;
-    container.style.top = `${rect.top - 56}px`;
+    container.style.top = `${reactionY}px`;
     container.style.alignItems = "flex-end";
   } else {
     container.style.left = `${rect.left}px`;
-    container.style.top = `${rect.top - 56}px`;
+    container.style.top = `${reactionY}px`;
     container.style.alignItems = "flex-start";
   }
 
@@ -530,18 +588,17 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   reactionBar.appendChild(moreBtn);
   container.appendChild(reactionBar);
 
-  // --- Action list (positioned below the original bubble) ---
+  // --- Action list (positioned below the bubble) ---
   const actionContainer = document.createElement("div");
   actionContainer.className = "ctx-actions-wrap";
-  const actRect = bubble.getBoundingClientRect();
   if (isMe) {
     actionContainer.style.position = "fixed";
-    actionContainer.style.right = `${window.innerWidth - actRect.right}px`;
-    actionContainer.style.top = `${actRect.bottom + 8}px`;
+    actionContainer.style.right = `${window.innerWidth - rect.right}px`;
+    actionContainer.style.top = `${actionY}px`;
   } else {
     actionContainer.style.position = "fixed";
-    actionContainer.style.left = `${actRect.left}px`;
-    actionContainer.style.top = `${actRect.bottom + 8}px`;
+    actionContainer.style.left = `${rect.left}px`;
+    actionContainer.style.top = `${actionY}px`;
   }
 
   const actionList = document.createElement("div");
@@ -567,6 +624,8 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   // close on overlay click — remove elevated class
   const closeMenu = () => {
     bubble.classList.remove("ctx-elevated");
+    bubble.style.transform = "";
+    bubble.style.transition = "";
     overlay.remove();
   };
   overlay.addEventListener("click", (ev) => {

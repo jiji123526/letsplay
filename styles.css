@@ -471,8 +471,6 @@ body {
   position: relative;
   z-index: 101;
   box-shadow: 0 4px 20px rgba(0,0,0,.15);
-  transform: scale(1.03);
-  transition: transform .15s ease, box-shadow .15s ease;
 }
 .ctx-elevated.tail::before,
 .ctx-elevated.tail::after {
@@ -1211,13 +1209,11 @@ emoji-picker {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(245,245,247,.75);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: rgba(255,255,255,.95);
   border-radius: 14px;
   z-index: 10;
-  box-shadow: 0 2px 8px rgba(0,0,0,.08);
   flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
 }
 .notice-banner-icon {
   flex-shrink: 0;
@@ -1245,7 +1241,8 @@ emoji-picker {
   padding: 0 4px;
 }
 [data-theme="dark"] .notice-banner {
-  background: rgba(44,44,46,.75);
+  background: rgba(44,44,46,.95);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
 }
 
 /* ---------- link preview card ---------- */
