@@ -940,7 +940,9 @@ async function send() {
 }
 
 input.addEventListener("input", toggleSend);
-input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) send(); });
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.isComposing && !e.shiftKey) { e.preventDefault(); send(); }
+});
 sendBtn.addEventListener("click", send);
 sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
 
@@ -1152,8 +1154,17 @@ photoInput.addEventListener("change", async () => {
   if (!file) return;
   photoInput.value = "";
 
-  // compress and convert to base64
-  const dataUrl = await compressImage(file, 800, 0.7);
+  // compress and convert to base64 (skip for GIFs to preserve animation)
+  let dataUrl;
+  if (file.type === "image/gif") {
+    dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsDataURL(file);
+    });
+  } else {
+    dataUrl = await compressImage(file, 800, 0.7);
+  }
   pendingPhoto = dataUrl;
   showPhotoPreview(dataUrl);
   input.focus();

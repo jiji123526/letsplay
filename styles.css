@@ -286,6 +286,10 @@ body {
   font-family: inherit;
   user-select: text;
   -webkit-user-select: text;
+  resize: none;
+  line-height: 1.4;
+  max-height: 80px;
+  overflow-y: auto;
 }
 .msg-input::placeholder { color: var(--placeholder); font-size: var(--bubble-font-size, 17px); }
 
@@ -739,6 +743,9 @@ emoji-picker {
 /* ---------- reply thread rows ---------- */
 .row.reply-row {
   padding-top: 2px;
+}
+.row:not(.reply-row) + .row.reply-row {
+  padding-top: 8px;
 }
 .row.reply-row.recv {
   padding-left: calc(var(--bubble-font-size, 17px) + 8px);
