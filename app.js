@@ -357,6 +357,8 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       bubble.addEventListener("touchstart", (e) => {
         if (e.target.closest("a")) return; // let links be tappable
         const targetBubble = bubble;
+        bubble.style.userSelect = "none";
+        bubble.style.webkitUserSelect = "none";
         pressTimer = setTimeout(() => {
           pressTimer = null;
           if (m.report && m.reportedMsgId && isAdmin) {
@@ -371,9 +373,13 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
       bubble.addEventListener("touchend", () => {
         if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        bubble.style.userSelect = "";
+        bubble.style.webkitUserSelect = "";
       });
       bubble.addEventListener("touchmove", () => {
         if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        bubble.style.userSelect = "";
+        bubble.style.webkitUserSelect = "";
       });
 
       // desktop: use mousedown
