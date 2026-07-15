@@ -1527,7 +1527,7 @@ function showNoticePanel() {
             <li>신고 철회 가능, 신고자에게만 신고 메세지 플래그</li>
             <li>+ 메뉴: 사진 보내기 / 비밀 메세지</li>
             <li>비밀 메세지는 찍이한테만 보이고 보낸 사람한테도 안보임</li>
-            <li>우측 상단에 설정 및 갤러리</li>
+            <li>우측 상단 메뉴에 설정/갤러리/링크</li>
           </ul>
         </div>
         <div class="notice-section">
