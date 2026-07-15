@@ -1276,7 +1276,7 @@ function refilterMessages() {
           render();
           banner("관리자 모드 활성화");
         } else if (pass !== null) {
-          banner("비밀번호가 틀렸습니다");
+          banner("나이스시도ㅋ");
         }
       }
     }, 800);
@@ -1525,7 +1525,14 @@ function startChat() {
   // subscribe to gallery
   subscribeGallery((list) => { galleryItems = list; render(); });
   // subscribe to notice
-  subscribeNotice((text) => { currentNotice = text; renderNoticeBanner(); });
+  subscribeNotice((text) => {
+    // if notice changed, reset dismiss status
+    if (text && text !== currentNotice) {
+      localStorage.removeItem("noticeDismissed");
+    }
+    currentNotice = text;
+    renderNoticeBanner();
+  });
   toggleSend();
   renderNoticeBanner();
 }
