@@ -136,13 +136,13 @@ body {
   align-items: flex-end;
   gap: 6px;
   max-width: 100%;
-  margin-top: 3px;
+  padding-top: 3px;
 }
 .row.sent   { justify-content: flex-end; }
 .row.recv   { justify-content: flex-start; }
 
 /* extra space before a new group */
-.row.group-start { margin-top: 8px; }
+.row.group-start { padding-top: 8px; }
 
 .bubble-col { display: flex; flex-direction: column; max-width: 74%; }
 .row.sent .bubble-col { align-items: flex-end; }
@@ -738,7 +738,7 @@ emoji-picker {
 
 /* ---------- reply thread rows ---------- */
 .row.reply-row {
-  margin-top: 2px;
+  padding-top: 2px;
 }
 .row.reply-row.recv {
   padding-left: calc(var(--bubble-font-size, 17px) + 8px);
