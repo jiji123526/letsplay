@@ -1573,3 +1573,14 @@ emoji-picker {
   padding: 8px 4px 4px;
   font-weight: 500;
 }
+
+/* ---------- native embeds (Twitter/Instagram) ---------- */
+.embed-twitter, .embed-instagram {
+  margin-top: 6px;
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 300px;
+}
+.embed-twitter iframe {
+  border-radius: 12px !important;
+}

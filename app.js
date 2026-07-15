@@ -237,22 +237,21 @@ function showDmMenu(e, msg, bubbleEl) {
   actionList.className = "ctx-actions";
 
   const actions = [
-    { label: "삭제", icon: ICONS.delete, danger: true, handler: () => removeDm(msg.id) },
+    { label: "삭제", icon: ICONS.delete, danger: true, handler: () => doDeleteDm(msg.id) },
   ];
 
   // if user is blocked, show unblock option; otherwise show block
   if (blockedUids.has(msg.uid)) {
     actions.push({ label: "차단 해제", icon: ICONS.unreport, danger: false, handler: async () => {
       blockedUids.delete(msg.uid);
-      const { unblockUser } = await import("./backend.js");
-      await unblockUser(msg.uid);
+      await doUnblock(msg.uid);
       render();
       banner("차단이 해제되었습니다", "#34c759");
     }});
   } else {
     actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       blockedUids.add(msg.uid);
-      blockUser(msg.uid, msg.text || "[DM]");
+      doBlock(msg.uid, msg.text || "[DM]");
       render();
     }});
   }
@@ -397,6 +396,9 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
     } else {
       // detect URLs and make them clickable
       const urlRegex = /(https?:\/\/[^\s]+|(?:www\.|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|dev|app|co|me|tv|gg|xyz|kr|jp))[^\s]*)/g;
+      const twitterRegex = /^https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i;
+      const instagramRegex = /^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[\w-]+/i;
+
       if (m.text.match(urlRegex)) {
         const urls = m.text.match(urlRegex);
         // render text with clickable links (add https:// if missing)
@@ -404,10 +406,16 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           const href = match.startsWith("http") ? match : `https://${match}`;
           return `<a href="${href}" target="_blank" rel="noopener" class="bubble-link">${match}</a>`;
         });
-        // fetch preview for all URLs
+        // embed or preview for each URL
         urls.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-          fetchLinkPreview(fullUrl, bubble);
+          if (twitterRegex.test(fullUrl)) {
+            embedTwitter(fullUrl, bubble);
+          } else if (instagramRegex.test(fullUrl)) {
+            embedInstagram(fullUrl, bubble);
+          } else {
+            fetchLinkPreview(fullUrl, bubble);
+          }
         });
       } else {
         bubble.textContent = m.text;
@@ -775,20 +783,62 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   }, 100); });
 }
 
-function deleteMessageWithReplies(msgId) {
-  // delete gallery photo if the message references one
+/* Admin-aware action wrappers */
+async function doDeleteMessage(id) {
+  if (isAdmin) await adminDeleteMessage(id);
+  else await removeMessage(id);
+}
+
+async function doDeleteGallery(id) {
+  if (isAdmin) await adminDeleteGallery(id);
+  else await removeFromGallery(id);
+}
+
+async function doBlock(uid, reason) {
+  if (isAdmin) await adminBlock(uid, reason);
+  else await blockUser(uid, reason);
+}
+
+async function doUnblock(uid) {
+  if (isAdmin) await adminUnblock(uid);
+  else {
+    const { unblockUser: ub } = await import("./backend.js");
+    await ub(uid);
+  }
+}
+
+async function doEditMessage(id, newText) {
+  if (isAdmin) await adminUpdateMessage(id, { text: newText, edited: true });
+  else await editMessage(id, newText);
+}
+
+async function doDeleteDm(id) {
+  if (isAdmin) await adminDeleteDm(id);
+  else await removeDm(id);
+}
+
+async function doSetNotice(text) {
+  if (isAdmin) await adminSetNotice(text);
+  else await setNotice(text);
+}
+
+async function deleteMessageWithReplies(msgId) {
   const msg = messages.find((m) => m.id === msgId);
   if (msg && msg.galleryId) {
-    removeFromGallery(msg.galleryId);
+    await doDeleteGallery(msg.galleryId);
   }
-  // delete the message itself
-  removeMessage(msgId);
-  // delete all replies to this message and reports referencing it
+  // collect all IDs to delete
+  const idsToDelete = [msgId];
   messages.forEach((m) => {
     if (m.replyTo === msgId || m.reportedMsgId === msgId) {
-      removeMessage(m.id);
+      idsToDelete.push(m.id);
     }
   });
+  if (isAdmin) {
+    await adminDeleteMessages(idsToDelete);
+  } else {
+    for (const id of idsToDelete) await removeMessage(id);
+  }
 }
 
 function getActions(msg, isMe) {
@@ -811,8 +861,8 @@ function getActions(msg, isMe) {
     }});
     actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       const isBlocked = blockedUids.has(msg.uid);
-      if (isBlocked) { blockedUids.delete(msg.uid); import("./backend.js").then(b => b.unblockUser(msg.uid)); }
-      else { blockedUids.add(msg.uid); blockUser(msg.uid, msg.text); }
+      if (isBlocked) { blockedUids.delete(msg.uid); doUnblock(msg.uid); }
+      else { blockedUids.add(msg.uid); doBlock(msg.uid, msg.text); }
       render();
     }});
     return actions;
@@ -825,10 +875,10 @@ function getActions(msg, isMe) {
     }});
     actions.push({ label: "수정", icon: ICONS.edit, danger: false, handler: () => {
       const newText = prompt("메시지 수정:", msg.text);
-      if (newText !== null && newText.trim()) editMessage(msg.id, newText.trim());
+      if (newText !== null && newText.trim()) doEditMessage(msg.id, newText.trim());
     }});
     actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
-      if (msg.galleryId) removeFromGallery(msg.galleryId);
+      if (msg.galleryId) doDeleteGallery(msg.galleryId);
       removeMessage(msg.id);
     }});
     return actions;
@@ -843,7 +893,7 @@ function getActions(msg, isMe) {
       const hasReplies = allMessages.some((r) => r.replyTo === msg.id);
       // delete gallery photo if message has one
       if (msg.galleryId) {
-        removeFromGallery(msg.galleryId);
+        doDeleteGallery(msg.galleryId);
       }
       if (hasReplies) {
         softDeleteMessage(msg.id);
@@ -1162,6 +1212,77 @@ function showFullImage(src, meta) {
    ============================================================ */
 const previewCache = {};
 
+/* ---- Native embeds ---- */
+function embedTwitter(url, bubble) {
+  const tweetId = url.match(/status\/(\d+)/)?.[1];
+  if (!tweetId) return;
+
+  // hide the link text
+  const link = bubble.querySelector(`.bubble-link[href="${url}"]`) || bubble.querySelector(`.bubble-link`);
+  if (link) link.style.display = "none";
+
+  const container = document.createElement("div");
+  container.className = "embed-twitter";
+  container.style.minHeight = "80px";
+  bubble.appendChild(container);
+
+  // load Twitter widget script if not already loaded
+  function renderTweet() {
+    if (window.twttr?.widgets?.createTweet) {
+      window.twttr.widgets.createTweet(tweetId, container, {
+        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+        conversation: "none",
+        width: 300,
+      });
+    }
+  }
+
+  if (window.twttr?.widgets) {
+    renderTweet();
+  } else {
+    if (!document.getElementById("twitter-wjs")) {
+      const script = document.createElement("script");
+      script.id = "twitter-wjs";
+      script.src = "https://platform.twitter.com/widgets.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+    (window.twttr = window.twttr || { _e: [] })._e.push(renderTweet);
+  }
+}
+
+function embedInstagram(url, bubble) {
+  // hide the link text
+  const link = bubble.querySelector(`.bubble-link[href="${url}"]`) || bubble.querySelector(`.bubble-link`);
+  if (link) link.style.display = "none";
+
+  const container = document.createElement("div");
+  container.className = "embed-instagram";
+  container.style.maxWidth = "300px";
+  container.innerHTML = `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="max-width:300px;width:100%;margin:0;border:0;border-radius:12px;background:#f4f4f4;"></blockquote>`;
+  bubble.appendChild(container);
+
+  // load Instagram embed script if not already loaded
+  function processEmbeds() {
+    if (window.instgrm?.Embeds?.process) {
+      window.instgrm.Embeds.process();
+    }
+  }
+
+  if (window.instgrm) {
+    processEmbeds();
+  } else if (!document.getElementById("insta-embed-js")) {
+    const script = document.createElement("script");
+    script.id = "insta-embed-js";
+    script.src = "https://www.instagram.com/embed.js";
+    script.async = true;
+    script.onload = processEmbeds;
+    document.body.appendChild(script);
+  } else {
+    setTimeout(processEmbeds, 1000);
+  }
+}
+
 async function fetchLinkPreview(url, bubble) {
   // check cache first
   if (previewCache[url]) {
@@ -1277,7 +1398,7 @@ let currentNotice = "";
 function setNoticeBanner(text) {
   currentNotice = text;
   localStorage.removeItem("noticeDismissed");
-  setNotice(text);
+  doSetNotice(text);
   renderNoticeBanner();
 }
 
@@ -2000,8 +2121,7 @@ function showBlockedPanel() {
     btn.addEventListener("click", async () => {
       const uid = btn.dataset.uid;
       blockedUids.delete(uid);
-      const { unblockUser } = await import("./backend.js");
-      await unblockUser(uid);
+      await doUnblock(uid);
       panel.remove();
       showBlockedPanel(); // refresh
     });
