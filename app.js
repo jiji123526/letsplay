@@ -47,6 +47,14 @@ let galleryItems = [];           // gallery photos
 let initialLoad = true;          // force scroll to bottom for first 3 seconds
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
+/* debounced render — batches rapid updates (reactions, etc.) into one render */
+let renderTimer = null;
+let skipNextScroll = false;
+function debouncedRender() {
+  if (renderTimer) cancelAnimationFrame(renderTimer);
+  renderTimer = requestAnimationFrame(() => { renderTimer = null; skipNextScroll = true; render(); });
+}
+
 function saveReportedIds() {
   localStorage.setItem("reportedMsgIds", JSON.stringify([...reportedMsgIds]));
 }
@@ -56,7 +64,8 @@ function saveReportedIds() {
    ============================================================ */
 function render() {
   // check if user is near the bottom before re-rendering
-  const shouldAutoScroll = initialLoad || messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50;
+  const shouldAutoScroll = !skipNextScroll && (initialLoad || messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50);
+  skipNextScroll = false;
 
   messagesEl.innerHTML = "";
 
@@ -858,6 +867,22 @@ function getActions(msg, isMe) {
 
 function addReaction(msgId, emoji) {
   const reactUid = isAdmin ? "admin" : myUid;
+  const key = `${reactUid}_${emoji.codePointAt(0).toString(16)}`;
+
+  // optimistic update — modify local state immediately
+  const msg = messages.find((m) => m.id === msgId);
+  if (msg) {
+    if (!msg.reactions) msg.reactions = {};
+    if (msg.reactions[key]) {
+      delete msg.reactions[key];
+    } else {
+      msg.reactions[key] = emoji;
+    }
+    skipNextScroll = true;
+    render();
+  }
+
+  // then sync to backend
   addReactionBackend(msgId, emoji, reactUid);
 }
 
@@ -1982,7 +2007,7 @@ function startChat() {
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
-    render();
+    debouncedRender();
   });
   // subscribe to DMs (admin sees them in the chat)
   subscribeDm((list) => {
