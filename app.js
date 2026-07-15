@@ -942,6 +942,7 @@ async function send() {
 input.addEventListener("input", toggleSend);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) send(); });
 sendBtn.addEventListener("click", send);
+sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
 
 /* ============================================================
    PHOTO UPLOAD

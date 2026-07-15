@@ -116,7 +116,6 @@ body {
   padding: 12px 14px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -137,7 +136,7 @@ body {
   align-items: flex-end;
   gap: 6px;
   max-width: 100%;
-  margin-top: 1px;
+  margin-top: 3px;
 }
 .row.sent   { justify-content: flex-end; }
 .row.recv   { justify-content: flex-start; }
@@ -295,6 +294,7 @@ body {
   width: 26px; height: 26px;
   border: none; padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  touch-action: manipulation;
 }
 .mic-btn { background: none; color: var(--meta); }
 .send-btn {
