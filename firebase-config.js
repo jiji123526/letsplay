@@ -13,7 +13,7 @@
 // are stored in your browser (localStorage) and a fake "other person"
 // replies so you can see both bubble styles. Flip to `false` once you
 // paste real keys below and want to go live.
-export const USE_MOCK = false;
+export const USE_MOCK = true;
 // -----------------------------------------------------------
 
 export const firebaseConfig = {

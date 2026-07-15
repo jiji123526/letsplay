@@ -168,12 +168,24 @@ function showDmMenu(e, msg, bubbleEl) {
 
   const actions = [
     { label: "삭제", icon: ICONS.delete, danger: true, handler: () => removeDm(msg.id) },
-    { label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
+  ];
+
+  // if user is blocked, show unblock option; otherwise show block
+  if (blockedUids.has(msg.uid)) {
+    actions.push({ label: "차단 해제", icon: ICONS.unreport, danger: false, handler: async () => {
+      blockedUids.delete(msg.uid);
+      const { unblockUser } = await import("./backend.js");
+      await unblockUser(msg.uid);
+      render();
+      banner("차단이 해제되었습니다", "#34c759");
+    }});
+  } else {
+    actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       blockedUids.add(msg.uid);
       blockUser(msg.uid, msg.text || "[DM]");
       render();
-    }},
-  ];
+    }});
+  }
 
   actions.forEach((action) => {
     const item = document.createElement("button");
@@ -258,7 +270,13 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       bubble.classList.add(replyIsMine ? "reply-mine" : "reply-other");
     }
     if (m.report) bubble.classList.add("report-bubble");
-    if (m.dm) bubble.classList.add("dm-bubble");
+    if (m.dm) {
+      bubble.classList.add("dm-bubble");
+      // if petition is resolved (user unblocked), mark it
+      if (m.text && m.text.includes("[이의 제기]") && !blockedUids.has(m.uid)) {
+        bubble.classList.add("dm-resolved");
+      }
+    }
     if (reportedMsgIds.has(m.id)) bubble.classList.add("reported");
     // admin: mark messages that have been reported by others
     if (isAdmin && !m.report && messages.some((r) => r.report && r.reportedMsgId === m.id)) {
@@ -370,20 +388,30 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
     if (!m.deleted) {
       bubble.style.cursor = "pointer";
       let pressTimer = null;
+      let pressTriggered = false;
+
+      // report bubbles: single tap to scroll to reported message
+      if (m.report && m.reportedMsgId && isAdmin) {
+        bubble.addEventListener("click", (e) => {
+          if (!pressTriggered) {
+            e.stopPropagation();
+            scrollToMessage(m.reportedMsgId);
+          }
+        });
+      }
 
       bubble.addEventListener("touchstart", (e) => {
-        if (e.target.closest("a")) return; // let links be tappable
+        if (e.target.closest("a")) return;
         const targetBubble = bubble;
+        pressTriggered = false;
         bubble.style.userSelect = "none";
         bubble.style.webkitUserSelect = "none";
         pressTimer = setTimeout(() => {
           pressTimer = null;
-          // re-enable text selection on the elevated bubble
+          pressTriggered = true;
           bubble.style.userSelect = "text";
           bubble.style.webkitUserSelect = "text";
-          if (m.report && m.reportedMsgId && isAdmin) {
-            scrollToMessage(m.reportedMsgId);
-          } else if (m.dm && isAdmin) {
+          if (m.dm && isAdmin) {
             showDmMenu(e, m, targetBubble);
           } else {
             showContextMenu(e, m, side === "sent", targetBubble);
@@ -406,11 +434,11 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       bubble.addEventListener("mousedown", (e) => {
         if (e.target.closest("a")) return; // let links be clickable
         const targetBubble = bubble;
+        pressTriggered = false;
         pressTimer = setTimeout(() => {
           pressTimer = null;
-          if (m.report && m.reportedMsgId && isAdmin) {
-            scrollToMessage(m.reportedMsgId);
-          } else if (m.dm && isAdmin) {
+          pressTriggered = true;
+          if (m.dm && isAdmin) {
             showDmMenu(e, m, targetBubble);
           } else {
             showContextMenu(e, m, side === "sent", targetBubble);
@@ -491,14 +519,18 @@ function tsToDate(m) {
   return m.createdAt instanceof Date ? m.createdAt : null;
 }
 function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate();
+  const kstA = new Date(a.getTime() + 9 * 60 * 60 * 1000);
+  const kstB = new Date(b.getTime() + 9 * 60 * 60 * 1000);
+  return kstA.getUTCFullYear() === kstB.getUTCFullYear()
+    && kstA.getUTCMonth() === kstB.getUTCMonth()
+    && kstA.getUTCDate() === kstB.getUTCDate();
 }
 function labelForDay(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  // convert to KST (UTC+9)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
   return `${y}/${m}/${day}`;
 }
 
@@ -744,13 +776,6 @@ function getActions(msg, isMe) {
         removeMessage(msg.id);
       }
     }});
-    if (!msg.is_admin) {
-      if (reportedMsgIds.has(msg.id)) {
-        actions.push({ label: "신고 취소", icon: ICONS.unreport, danger: false, handler: () => unreportMessage(msg) });
-      } else {
-        actions.push({ label: "신고", icon: ICONS.report, danger: true, handler: () => reportMessage(msg) });
-      }
-    }
     return actions;
   } else {
     // non-admin viewing others' messages
@@ -874,15 +899,32 @@ function clearReply() {
 /* check if current user is blocked and disable composer */
 function checkIfBlocked() {
   const blocked = !isAdmin && blockedUids.has(myUid);
-  input.disabled = blocked;
+  const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
+
   if (blocked) {
-    input.placeholder = "차단된 사용자입니다";
-    sendBtn.hidden = true;
+    if (hasPetitioned) {
+      // already sent petition, fully disabled
+      input.disabled = true;
+      input.placeholder = "차단된 사용자입니다";
+      sendBtn.hidden = true;
+      document.querySelector(".input-wrap")?.classList.add("blocked-mode");
+      document.querySelector(".input-wrap")?.classList.remove("dm-mode");
+    } else {
+      // allow one DM petition
+      input.disabled = false;
+      input.placeholder = "울어봐빌어도좋곸ㅋㅋㅋ (기회1회)";
+      document.querySelector(".input-wrap")?.classList.add("blocked-mode");
+      document.querySelector(".input-wrap")?.classList.remove("dm-mode");
+      toggleSend();
+    }
   } else {
+    input.disabled = false;
     input.placeholder = isAdmin ? "말조심" : "친하게 지내";
+    document.querySelector(".input-wrap")?.classList.remove("dm-mode");
+    document.querySelector(".input-wrap")?.classList.remove("blocked-mode");
     toggleSend();
   }
-  return blocked;
+  return blocked && hasPetitioned;
 }
 
 /* rate limiter: max 5 messages per 10 seconds (non-admin only) */
@@ -900,6 +942,29 @@ function isRateLimited() {
 async function send() {
   const text = input.value.trim();
   if (!text && !pendingPhoto || !myUid) return;
+
+  // blocked user petition: send one DM then lock
+  const isBlocked = !isAdmin && blockedUids.has(myUid);
+  const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
+  if (isBlocked && hasPetitioned) {
+    banner("차단되어 메시지를 보낼 수 없습니다");
+    return;
+  }
+  if (isBlocked && !hasPetitioned) {
+    // send as DM petition with the blocked reason quoted
+    const blockEntry = blockedList.find((b) => b.uid === myUid);
+    const reason = blockEntry && blockEntry.reason ? `\n[차단 사유: "${blockEntry.reason}"]` : "";
+    await sendDm({ uid: myUid, nick: myNick, text: `[이의 제기] ${text}${reason}`, image: pendingPhoto || undefined });
+    localStorage.setItem("petitionSent", myUid);
+    input.value = "";
+    input.style.height = "auto";
+    pendingPhoto = null;
+    removePhotoPreview();
+    checkIfBlocked();
+    banner("이의 제기가 전송되었습니다", "#ff3b30");
+    return;
+  }
+
   if (checkIfBlocked()) {
     banner("차단되어 메시지를 보낼 수 없습니다");
     return;
@@ -948,7 +1013,9 @@ input.addEventListener("input", () => {
   input.style.height = Math.min(input.scrollHeight, 80) + "px";
 });
 input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.isComposing && !e.shiftKey) { e.preventDefault(); send(); }
+  // on mobile (touch devices), Enter adds a new line; on desktop, Enter sends
+  const isMobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  if (e.key === "Enter" && !e.isComposing && !e.shiftKey && !isMobile) { e.preventDefault(); send(); }
 });
 sendBtn.addEventListener("click", send);
 sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
@@ -1045,6 +1112,10 @@ photoBtn.addEventListener("click", (e) => {
   if (isAdmin) {
     showAdminPlusMenu(e);
   } else {
+    // blocked users who already petitioned can't use + menu
+    const isBlocked = blockedUids.has(myUid);
+    const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
+    if (isBlocked && hasPetitioned) return;
     showPlusMenu(e);
   }
 });
@@ -1173,6 +1244,13 @@ photoInput.addEventListener("change", async () => {
   } else {
     dataUrl = await compressImage(file, 800, 0.7);
   }
+
+  // check size limit (~700KB raw = ~1MB base64 = Firestore limit)
+  if (dataUrl.length > 900000) {
+    banner("움짤되게하는중 쫌만기달ㅜ");
+    return;
+  }
+
   pendingPhoto = dataUrl;
   showPhotoPreview(dataUrl);
   input.focus();
@@ -1344,7 +1422,7 @@ function showNoticePanel() {
           <ul>
             <li>호모:순덕 비율 알잘딱깔센</li>
             <li>빡치는 메세지 있을경우 플 늘리지 말고 신고하면 다지워줌</li>
-            <li>차단당한거 억울하면 디엠</li>
+            <li>차단당한거 억울하면 탄원서 제출가능 (기회1번)</li>
           </ul>
         </div>
       </div>
@@ -1554,6 +1632,8 @@ function startChat() {
   });
   toggleSend();
   renderNoticeBanner();
+  // scroll to bottom on initial load
+  setTimeout(() => { messagesEl.scrollTop = messagesEl.scrollHeight; }, 100);
 }
 
 /* small non-blocking error banner */

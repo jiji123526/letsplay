@@ -478,6 +478,7 @@ body {
   position: relative;
   z-index: 101;
   box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  filter: brightness(1.1);
 }
 .ctx-elevated.tail::before,
 .ctx-elevated.tail::after {
@@ -1327,4 +1328,28 @@ emoji-picker {
 .bubble.reply-other {
   background: var(--gray-bubble) !important;
   color: var(--gray-text) !important;
+}
+
+/* ---------- blocked user mode (red) ---------- */
+.input-wrap.blocked-mode {
+  border-color: #ff3b30;
+  background: rgba(255,59,48,.05);
+}
+.input-wrap.blocked-mode .send-btn {
+  background: #ff3b30;
+}
+[data-theme="dark"] .input-wrap.blocked-mode {
+  border-color: #ff3b30;
+  background: rgba(255,59,48,.1);
+}
+
+/* ---------- resolved petition DM ---------- */
+.bubble.dm-resolved {
+  background: #d4edda !important;
+  color: #155724 !important;
+  opacity: 0.8;
+}
+[data-theme="dark"] .bubble.dm-resolved {
+  background: #1a3d2a !important;
+  color: #a3d9b1 !important;
 }
