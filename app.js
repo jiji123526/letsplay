@@ -2187,11 +2187,13 @@ function startChat() {
   // subscribe to gallery
   subscribeGallery((list) => { galleryItems = list; render(); });
   // subscribe to notice
+  let noticeInitialized = false;
   subscribeNotice((text) => {
-    // if notice changed, reset dismiss status
-    if (text && text !== currentNotice) {
+    // only reset dismiss when notice actually changes (not on first load)
+    if (noticeInitialized && text && text !== currentNotice) {
       localStorage.removeItem("noticeDismissed");
     }
+    noticeInitialized = true;
     currentNotice = text;
     renderNoticeBanner();
   });
