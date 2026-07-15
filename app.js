@@ -638,7 +638,8 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
   const actionList = document.createElement("div");
   actionList.className = "ctx-actions";
 
-  const actions = getActions(msg, isMe);
+  const actualIsMe = isAdmin ? msg.uid === "admin" : msg.uid === myUid;
+  const actions = getActions(msg, actualIsMe);
   actions.forEach((action) => {
     const item = document.createElement("button");
     item.className = `ctx-action-item${action.danger ? " ctx-danger" : ""}`;
@@ -1162,7 +1163,8 @@ photoInput.addEventListener("change", async () => {
 
   // compress and convert to base64 (skip for GIFs to preserve animation)
   let dataUrl;
-  if (file.type === "image/gif") {
+  const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+  if (isGif) {
     dataUrl = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target.result);

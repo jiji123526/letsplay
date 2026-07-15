@@ -743,7 +743,7 @@ emoji-picker {
 
 /* ---------- reply thread rows ---------- */
 .row.reply-row {
-  padding-top: 2px;
+  padding-top: 6px;
 }
 .row:not(.reply-row) + .row.reply-row {
   padding-top: 8px;
@@ -753,6 +753,9 @@ emoji-picker {
 }
 .row.reply-row.sent {
   padding-right: calc(var(--bubble-font-size, 17px) + 8px);
+}
+.row.reply-row .bubble-col {
+  max-width: 85%;
 }
 
 /* bubble + arrow wrapper */
