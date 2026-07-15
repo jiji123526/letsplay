@@ -4,7 +4,7 @@
    which one is active.
    ============================================================ */
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "@supabase/supabase-js";
 import { supabaseConfig } from "./config.js";
 
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);

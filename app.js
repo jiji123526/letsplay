@@ -11,7 +11,7 @@
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, IS_MOCK } from "./backend.js";
 import { ADMIN_PASSCODE } from "./config.js";
-import "https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js";
+import "emoji-picker-element";
 
 const $ = (s) => document.querySelector(s);
 const messagesEl = $("#messages");
