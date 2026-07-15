@@ -908,6 +908,7 @@ async function send() {
     return;
   }
   input.value = "";
+  input.style.height = "auto";
   toggleSend();
   const nick = isAdmin ? "관리자" : myNick;
   const sendUid = isAdmin ? "admin" : myUid;
@@ -939,7 +940,12 @@ async function send() {
   catch (e) { console.error("send failed", e); banner("전송 실패"); }
 }
 
-input.addEventListener("input", toggleSend);
+input.addEventListener("input", () => {
+  toggleSend();
+  // auto-resize textarea
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 80) + "px";
+});
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.isComposing && !e.shiftKey) { e.preventDefault(); send(); }
 });

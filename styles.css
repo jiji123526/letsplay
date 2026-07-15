@@ -237,7 +237,7 @@ body {
 .composer {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
   background: var(--composer-bg);
@@ -252,6 +252,7 @@ body {
   color: var(--meta);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
+  align-self: center;
 }
 .composer-icon {
   flex: 0 0 auto;
