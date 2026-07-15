@@ -737,10 +737,10 @@ emoji-picker {
   margin-top: 2px;
 }
 .row.reply-row.recv {
-  padding-left: 28px;
+  padding-left: calc(var(--bubble-font-size, 17px) + 8px);
 }
 .row.reply-row.sent {
-  padding-right: 28px;
+  padding-right: calc(var(--bubble-font-size, 17px) + 8px);
 }
 
 /* bubble + arrow wrapper */
