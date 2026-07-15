@@ -266,10 +266,11 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       // detect URLs and make them clickable
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       if (m.text.match(urlRegex)) {
+        const urls = m.text.match(urlRegex);
+        // render text with clickable links
         bubble.innerHTML = m.text.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener" class="bubble-link">$1</a>');
-        // fetch preview for the first URL
-        const firstUrl = m.text.match(urlRegex)[0];
-        fetchLinkPreview(firstUrl, bubble);
+        // fetch preview for all URLs
+        urls.forEach((url) => fetchLinkPreview(url, bubble));
       } else {
         bubble.textContent = m.text;
       }
@@ -322,6 +323,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       let pressTimer = null;
 
       bubble.addEventListener("touchstart", (e) => {
+        if (e.target.closest("a")) return; // let links be tappable
         const targetBubble = bubble;
         pressTimer = setTimeout(() => {
           pressTimer = null;
@@ -344,6 +346,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
       // desktop: use mousedown
       bubble.addEventListener("mousedown", (e) => {
+        if (e.target.closest("a")) return; // let links be clickable
         const targetBubble = bubble;
         pressTimer = setTimeout(() => {
           pressTimer = null;
@@ -911,9 +914,12 @@ function renderPreviewCard(data, bubble) {
 
   card.innerHTML = html;
 
-  // hide the original link text since preview card replaces it
-  const link = bubble.querySelector(".bubble-link");
-  if (link) link.style.display = "none";
+  // hide the specific link that this preview replaces
+  bubble.querySelectorAll(".bubble-link").forEach((link) => {
+    if (link.href === data.url || link.textContent === data.url) {
+      link.style.display = "none";
+    }
+  });
 
   bubble.appendChild(card);
 }

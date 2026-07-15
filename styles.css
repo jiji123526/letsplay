@@ -34,7 +34,9 @@
   --tint:            #0a84ff;
 }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+
+.bubble { user-select: text; -webkit-user-select: text; }
 
 html, body {
   margin: 0;
@@ -283,6 +285,8 @@ body {
   padding: 8px 0;
   caret-color: var(--tint);
   font-family: inherit;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .msg-input::placeholder { color: var(--placeholder); font-size: var(--bubble-font-size, 17px); }
 
@@ -1248,6 +1252,7 @@ emoji-picker {
 .bubble-link {
   color: inherit;
   text-decoration: underline;
+  word-break: break-all;
 }
 .bubble.sent .bubble-link { color: rgba(255,255,255,.9); }
 .link-preview-card {
