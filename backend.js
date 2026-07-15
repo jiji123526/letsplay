@@ -11,10 +11,8 @@ let impl;
 
 if (USE_MOCK || BACKEND === "mock") {
   impl = await import("./mock-backend.js");
-} else if (BACKEND === "supabase") {
-  impl = await import("./supabase-backend.js");
 } else {
-  impl = await import("./firebase-backend.js");
+  impl = await import("./supabase-backend.js");
 }
 
 export const initAuth           = impl.initAuth;
