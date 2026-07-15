@@ -1306,3 +1306,14 @@ emoji-picker {
   border-radius: 8px 8px 0 0;
   background: #000;
 }
+
+/* ---------- reply color distinction ---------- */
+/* "mine" replies = blue, "other" replies = gray, regardless of side */
+.bubble.reply-mine {
+  background: #3b8df0 !important;
+  color: #fff !important;
+}
+.bubble.reply-other {
+  background: var(--gray-bubble) !important;
+  color: var(--gray-text) !important;
+}

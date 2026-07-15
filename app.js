@@ -198,7 +198,14 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
     /* Admin messages appear on the left, all non-admin messages on the right */
     let side;
-    if (isAdmin) {
+    if (isReply && parentMsg) {
+      // replies always follow parent's side
+      if (isAdmin) {
+        side = parentMsg.is_admin ? "sent" : "recv";
+      } else {
+        side = parentMsg.is_admin ? "recv" : "sent";
+      }
+    } else if (isAdmin) {
       side = m.is_admin ? "sent" : "recv";
     } else {
       side = m.is_admin ? "recv" : "sent";
@@ -240,6 +247,12 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
     const bubble = document.createElement("div");
     bubble.className = `bubble ${side}`;
     if (m.is_admin) bubble.classList.add("admin-bubble");
+    if (isReply) {
+      // admin view: admin replies = blue (mine), user replies = gray (other)
+      // non-admin view: user replies = blue (mine), admin replies = gray (other)
+      const replyIsMine = isAdmin ? m.is_admin : !m.is_admin;
+      bubble.classList.add(replyIsMine ? "reply-mine" : "reply-other");
+    }
     if (m.report) bubble.classList.add("report-bubble");
     if (m.dm) bubble.classList.add("dm-bubble");
     if (reportedMsgIds.has(m.id)) bubble.classList.add("reported");
