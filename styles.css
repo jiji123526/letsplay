@@ -180,13 +180,15 @@ body {
 
 /* tails — drawn as two pseudo-elements (the nub + the mask that
    carves the rounded corner, matching iOS bubble tails) */
+/* tails — drawn as two pseudo-elements (the nub + the mask that
+   carves the rounded corner, matching iOS bubble tails) */
 .bubble.tail.sent::before,
 .bubble.tail.recv::before {
   content: "";
   position: absolute;
   bottom: 0;
   width: 16px;
-  height: 16px;
+  height: 20px;
   z-index: -1;
 }
 .bubble.tail.sent::after,
@@ -195,14 +197,14 @@ body {
   position: absolute;
   bottom: 0;
   width: 10px;
-  height: 16px;
+  height: 20px;
   background: var(--bg);
   z-index: -1;
   transition: background .25s ease;
 }
 
 .bubble.tail.sent::before {
-  right: -5px;
+  right: -6px;
   background: #3b8df0;
   border-bottom-left-radius: 14px 12px;
 }
@@ -212,7 +214,7 @@ body {
 }
 
 .bubble.tail.recv::before {
-  left: -5px;
+  left: -6px;
   background: var(--gray-bubble);
   border-bottom-right-radius: 13px 11px;
 }
@@ -879,12 +881,6 @@ emoji-picker {
   cursor: pointer;
   animation: ctxFade .2s ease;
 }
-.img-overlay img {
-  max-width: 90%;
-  max-height: 90%;
-  object-fit: contain;
-  border-radius: 8px;
-}
 
 /* ---------- photo preview (above composer) ---------- */
 .photo-preview {
@@ -912,9 +908,12 @@ emoji-picker {
 .highlight-flash .bubble {
   animation: flashHighlight 2s ease;
 }
+.highlight-flash .bubble::before {
+  animation: flashHighlight 2s ease;
+}
 @keyframes flashHighlight {
-  0%, 20% { box-shadow: 0 0 0 3px #ff6b6b; }
-  100% { box-shadow: none; }
+  0%, 20% { filter: brightness(1.5) drop-shadow(0 0 4px #ff6b6b); }
+  100% { filter: none; }
 }
 
 
@@ -1525,4 +1524,52 @@ emoji-picker {
   font-size: calc(var(--bubble-font-size, 17px) - 3px);
   color: var(--tint);
   word-break: break-all;
+}
+
+/* ---------- full image overlay info ---------- */
+.img-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.img-overlay img {
+  max-width: 90%;
+  max-height: 70%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.img-overlay-info {
+  text-align: center;
+  padding: 12px;
+}
+.img-overlay-caption {
+  color: #fff;
+  font-size: var(--bubble-font-size, 15px);
+  margin-bottom: 8px;
+  text-shadow: 0 1px 4px rgba(0,0,0,.5);
+}
+.img-overlay-date {
+  background: rgba(255,255,255,.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,.3);
+  color: #fff;
+  font-size: calc(var(--bubble-font-size, 15px) - 2px);
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.img-overlay-date:active {
+  background: rgba(255,255,255,.4);
+}
+
+/* ---------- gallery date divider ---------- */
+.gallery-date-divider {
+  grid-column: 1 / -1;
+  font-size: calc(var(--bubble-font-size, 15px) - 3px);
+  color: var(--meta);
+  padding: 8px 4px 4px;
+  font-weight: 500;
 }

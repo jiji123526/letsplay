@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>DM Migration</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; }
+    .log { background: #f5f5f5; padding: 12px; border-radius: 8px; font-size: 13px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    button { padding: 12px 24px; font-size: 16px; border: none; background: #3b8df0; color: #fff; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🔒 DM Migration</h1>
+  <p>Migrates DMs from Firebase to Supabase. Run once.</p>
+  <button id="startBtn">Start</button>
+  <div class="log" id="log"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCjDPXcwiKHdzC5nbEwS7tRnY3xj9BlsZU",
+      authDomain: "playground-4a5b2.firebaseapp.com",
+      projectId: "playground-4a5b2",
+      storageBucket: "playground-4a5b2.firebasestorage.app",
+      messagingSenderId: "13988513328",
+      appId: "1:13988513328:web:cae8a378bd7ce958be8ff5",
+    };
+
+    const SUPABASE_URL = "https://wpwlqpkawssrywlqgncg.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indwd2xxcGthd3Nzcnl3bHFnbmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzE0MzAsImV4cCI6MjA5OTcwNzQzMH0.de5Jqfs97oOrIddr3yS1k3rQE2DaowYsHH40KKAXTYY";
+
+    const logEl = document.getElementById("log");
+    function log(msg) { logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      document.getElementById("startBtn").disabled = true;
+      try {
+        log("🔐 Signing into Firebase...");
+        await signInAnonymously(auth);
+        log("🔐 Signing into Supabase...");
+        const { error: authErr } = await supabase.auth.signInAnonymously();
+        if (authErr) throw authErr;
+        log("✅ Auth done\n");
+
+        log("🔒 Migrating DMs...");
+        const dmSnap = await getDocs(query(collection(db, "dm"), orderBy("createdAt", "asc")));
+        let dmCount = 0;
+        for (const doc of dmSnap.docs) {
+          const d = doc.data();
+          const row = {
+            uid: d.uid || "",
+            auth_uid: d.authUid || d.uid || "",
+            nick: d.nick || "",
+            text: d.text || "",
+            image: d.image || null,
+            created_at: d.createdAt?.toDate?.() ? d.createdAt.toDate().toISOString() : new Date().toISOString(),
+          };
+          const { error } = await supabase.from("dm").insert(row);
+          if (error) log(`  ⚠️ DM error: ${error.message}`);
+          else dmCount++;
+        }
+        log(`✅ ${dmCount} DMs migrated\n`);
+        log("🎉 DONE!");
+      } catch (e) {
+        log(`\n❌ ERROR: ${e.message}`);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -114,6 +114,35 @@ function render() {
       setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
     }
   }
+
+  // restore search highlights if search is active
+  if (document.querySelector(".search-bar")) {
+    const searchInput = document.querySelector(".search-input");
+    if (searchInput && searchInput.value.trim()) {
+      const query = searchInput.value.trim();
+      const queryLower = query.toLowerCase();
+      searchResults = [];
+      messages.forEach((m) => {
+        if (m.text && m.text.toLowerCase().includes(queryLower)) {
+          const row = document.getElementById(`msg-${m.id}`);
+          if (row) {
+            const bubble = row.querySelector(".bubble");
+            if (bubble) {
+              highlightTextInBubble(bubble, query);
+              searchResults.push(row);
+            }
+          }
+        }
+      });
+      if (searchResults.length > 0) {
+        if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
+        if (searchIndex < 0) searchIndex = searchResults.length - 1;
+        const row = searchResults[searchIndex];
+        const match = row?.querySelector(".search-match");
+        if (match) match.classList.add("search-active");
+      }
+    }
+  }
 }
 
 function showDmMenu(e, msg, bubbleEl) {
@@ -1058,13 +1087,43 @@ sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
    PHOTO UPLOAD
    ============================================================ */
 
-function showFullImage(src) {
+function showFullImage(src, meta) {
   const overlay = document.createElement("div");
   overlay.className = "img-overlay";
   const img = document.createElement("img");
   img.src = src;
   overlay.appendChild(img);
-  overlay.addEventListener("click", () => overlay.remove());
+
+  // show caption and date if provided
+  if (meta) {
+    const info = document.createElement("div");
+    info.className = "img-overlay-info";
+    let html = "";
+    if (meta.caption) html += `<div class="img-overlay-caption">${meta.caption}</div>`;
+    if (meta.date) {
+      const d = new Date(meta.date);
+      const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+      html += `<button class="img-overlay-date">${dateStr} →</button>`;
+    }
+    info.innerHTML = html;
+    overlay.appendChild(info);
+
+    // date tap → navigate to message
+    const dateBtn = info.querySelector(".img-overlay-date");
+    if (dateBtn && meta.msgId) {
+      dateBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        overlay.remove();
+        // close gallery if open
+        document.querySelector(".gallery-panel")?.remove();
+        scrollToMessage(meta.msgId);
+      });
+    }
+  }
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
   document.body.appendChild(overlay);
 }
 
@@ -1132,8 +1191,6 @@ function scrollToMessage(msgId) {
   const el = document.getElementById(`msg-${msgId}`);
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    el.classList.add("highlight-flash");
-    setTimeout(() => el.classList.remove("highlight-flash"), 2000);
   }
 }
 
@@ -1337,6 +1394,28 @@ function compressImage(file, maxWidth, quality) {
 function showGallery() {
   document.querySelector(".gallery-panel")?.remove();
 
+  // group gallery items by date (KST)
+  function galleryDateLabel(d) {
+    if (!d) return "날짜 없음";
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return `${kst.getUTCFullYear()}/${String(kst.getUTCMonth()+1).padStart(2,"0")}/${String(kst.getUTCDate()).padStart(2,"0")}`;
+  }
+
+  let galleryHtml = "";
+  if (galleryItems.length === 0) {
+    galleryHtml = '<div class="gallery-empty">사진이 없습니다</div>';
+  } else {
+    let lastDate = "";
+    galleryItems.forEach((g) => {
+      const dateLabel = galleryDateLabel(g.createdAt);
+      if (dateLabel !== lastDate) {
+        lastDate = dateLabel;
+        galleryHtml += `<div class="gallery-date-divider">${dateLabel}</div>`;
+      }
+      galleryHtml += `<img class="gallery-thumb" src="${g.image}" data-id="${g.id}" />`;
+    });
+  }
+
   const panel = document.createElement("div");
   panel.className = "gallery-panel";
 
@@ -1347,10 +1426,7 @@ function showGallery() {
         <button class="gallery-panel-close">✕</button>
       </div>
       <div class="gallery-grid">
-        ${galleryItems.length === 0
-          ? '<div class="gallery-empty">사진이 없습니다</div>'
-          : galleryItems.map((g) => `<img class="gallery-thumb" src="${g.image}" data-id="${g.id}" />`).join("")
-        }
+        ${galleryHtml}
       </div>
     </div>
   `;
@@ -1358,10 +1434,14 @@ function showGallery() {
   panel.querySelector(".gallery-panel-close").addEventListener("click", () => panel.remove());
   panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
 
-  // tap a photo to view full
+  // tap a photo to view full with metadata
   panel.querySelectorAll(".gallery-thumb").forEach((img) => {
     img.addEventListener("click", () => {
-      showFullImage(img.src);
+      const galleryId = img.dataset.id;
+      // find the message that references this gallery item
+      const msg = allMessages.find((m) => m.galleryId === galleryId);
+      const meta = msg ? { caption: msg.text || "", date: msg.createdAt, msgId: msg.id } : null;
+      showFullImage(img.src, meta);
     });
   });
 
@@ -1383,7 +1463,7 @@ function showLinks() {
       if (matches) {
         matches.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-          links.push({ url: fullUrl, date: m.createdAt });
+          links.push({ url: fullUrl, date: m.createdAt, msgId: m.id });
         });
       }
     }
@@ -1419,12 +1499,14 @@ function showLinks() {
     const listEl = panel.querySelector("#linksList");
     listEl.innerHTML = "";
     uniqueLinks.forEach(async (link) => {
-      const card = document.createElement("a");
+      const card = document.createElement("div");
       card.className = "links-card";
-      card.href = link.url;
-      card.target = "_blank";
-      card.rel = "noopener";
+      card.style.cursor = "pointer";
       card.innerHTML = `<div class="links-card-url">${link.url}</div>`;
+      card.addEventListener("click", () => {
+        panel.remove();
+        scrollToMessage(link.msgId);
+      });
       listEl.appendChild(card);
 
       // try to fetch preview
@@ -1604,7 +1686,9 @@ function closeSearchBar() {
   document.querySelector(".search-bar")?.remove();
   // clear highlights
   document.querySelectorAll(".search-match").forEach((el) => {
+    const parent = el.parentNode;
     el.replaceWith(el.textContent);
+    if (parent) parent.normalize();
   });
   searchResults = [];
   searchIndex = -1;
@@ -1613,7 +1697,9 @@ function closeSearchBar() {
 async function performSearch(query) {
   // clear previous highlights
   document.querySelectorAll(".search-match").forEach((el) => {
+    const parent = el.parentNode;
     el.replaceWith(el.textContent);
+    if (parent) parent.normalize();
   });
   searchResults = [];
   searchIndex = -1;
