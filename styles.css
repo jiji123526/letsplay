@@ -1579,8 +1579,18 @@ emoji-picker {
   margin-top: 6px;
   border-radius: 12px;
   overflow: hidden;
-  max-width: 300px;
+  max-width: 100%;
 }
 .embed-twitter iframe {
   border-radius: 12px !important;
+}
+.bubble:has(.embed-twitter),
+.bubble:has(.embed-instagram) {
+  max-width: 340px;
+  overflow: visible;
+  width: fit-content;
+}
+.bubble-col:has(.embed-twitter),
+.bubble-col:has(.embed-instagram) {
+  max-width: 340px;
 }

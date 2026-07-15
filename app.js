@@ -1232,7 +1232,7 @@ function embedTwitter(url, bubble) {
       window.twttr.widgets.createTweet(tweetId, container, {
         theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
         conversation: "none",
-        width: 300,
+        width: 320,
       });
     }
   }
@@ -1258,8 +1258,8 @@ function embedInstagram(url, bubble) {
 
   const container = document.createElement("div");
   container.className = "embed-instagram";
-  container.style.maxWidth = "300px";
-  container.innerHTML = `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="max-width:300px;width:100%;margin:0;border:0;border-radius:12px;background:#f4f4f4;"></blockquote>`;
+  container.style.maxWidth = "320px";
+  container.innerHTML = `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="max-width:320px;width:100%;margin:0;border:0;border-radius:12px;background:#f4f4f4;"></blockquote>`;
   bubble.appendChild(container);
 
   // load Instagram embed script if not already loaded
