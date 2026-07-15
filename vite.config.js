@@ -12,7 +12,4 @@ export default defineConfig({
       },
     },
   },
-  define: {
-    __ADMIN_PASSCODE__: JSON.stringify(process.env.ADMIN_PASSCODE || "changeme"),
-  },
 });

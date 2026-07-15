@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, IS_MOCK } from "./backend.js";
-import { ADMIN_PASSCODE } from "./config.js";
+import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice } from "./admin-api.js";
 import "emoji-picker-element";
 
 const $ = (s) => document.querySelector(s);
@@ -40,6 +40,11 @@ const messagesEl = $("#messages");
 let myUid   = null;
 let myNick  = "";          // derived from uid on sign-in (anonymous tag)
 let isAdmin = localStorage.getItem("isAdmin") === "true";
+// restore admin passcode for API calls
+if (isAdmin) {
+  const storedPass = localStorage.getItem("ap");
+  if (storedPass) setAdminPasscode(atob(storedPass));
+}
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
@@ -1574,26 +1579,33 @@ function refilterMessages() {
 
   avatar.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    pressTimer = setTimeout(() => {
+    pressTimer = setTimeout(async () => {
       pressTimer = null;
       if (isAdmin) {
         isAdmin = false;
         localStorage.setItem("isAdmin", "false");
+        localStorage.removeItem("ap");
+        setAdminPasscode(null);
         checkIfBlocked();
         refilterMessages();
         render();
         banner("관리자 모드 해제");
       } else {
         const pass = prompt("관리자 비밀번호:");
-        if (pass === ADMIN_PASSCODE) {
-          isAdmin = true;
-          localStorage.setItem("isAdmin", "true");
-          checkIfBlocked();
-          refilterMessages();
-          render();
-          banner("관리자 모드 활성화");
-        } else if (pass !== null) {
-          banner("나이스시도ㅋ");
+        if (pass) {
+          const valid = await verifyAdmin(pass);
+          if (valid) {
+            setAdminPasscode(pass);
+            isAdmin = true;
+            localStorage.setItem("isAdmin", "true");
+            localStorage.setItem("ap", btoa(pass));
+            checkIfBlocked();
+            refilterMessages();
+            render();
+            banner("관리자 모드 활성화");
+          } else {
+            banner("비밀번호가 틀렸습니다");
+          }
         }
       }
     }, 800);
