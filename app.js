@@ -2249,7 +2249,7 @@ function startChat() {
   started = true;
   checkIfBlocked();
   // force scroll to bottom for first 5 seconds while data loads
-  setTimeout(() => { initialLoad = false; }, 5000);
+  setTimeout(() => { initialLoad = false; messagesEl.scrollTop = 999999; }, 5000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
