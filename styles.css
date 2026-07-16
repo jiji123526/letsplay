@@ -1870,3 +1870,97 @@ emoji-picker {
   background: #333;
   color: #ccc;
 }
+
+/* ---------- admin panel ---------- */
+.admin-panel,
+.admin-color-panel,
+.admin-passcode-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0,0,0,.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.admin-panel-content {
+  width: 100%;
+  max-width: 320px;
+  background: var(--bg);
+  color: var(--gray-text);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.admin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: .5px solid var(--hairline);
+}
+.admin-panel-header h3 {
+  margin: 0;
+  font-size: var(--bubble-font-size, 16px);
+  font-weight: 700;
+}
+.admin-panel-close,
+.admin-color-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--meta);
+  font-size: 18px;
+}
+.admin-panel-body {
+  padding: 8px 0;
+}
+.admin-panel-section {
+  display: flex;
+  flex-direction: column;
+}
+.admin-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: .5px solid var(--hairline);
+  padding: 14px 18px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--gray-text);
+}
+.admin-panel-item:last-child {
+  border-bottom: none;
+}
+.admin-panel-item:active {
+  background: rgba(0,0,0,.03);
+}
+.admin-panel-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+.admin-panel-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+.admin-panel-arrow {
+  color: var(--meta);
+  font-size: 18px;
+}
+.admin-color-info {
+  font-size: 13px;
+  color: var(--meta);
+  text-align: center;
+}
+[data-theme="dark"] .admin-panel-item:active {
+  background: rgba(255,255,255,.05);
+}

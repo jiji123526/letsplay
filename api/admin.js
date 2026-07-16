@@ -100,6 +100,21 @@ export default async function handler(req, res) {
         return res.json({ ok: true, color: data?.text || null });
       }
 
+      case "setPasscode": {
+        const { channelId, hashedPasscode } = payload;
+        const passcodeId = `passcode_${channelId || "main"}`;
+        const { error } = await supabase.from("config").upsert({ id: passcodeId, text: hashedPasscode, channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return res.json({ ok: true });
+      }
+
+      case "getPasscode": {
+        const { channelId } = payload;
+        const passcodeId = `passcode_${channelId || "main"}`;
+        const { data } = await supabase.from("config").select("text").eq("id", passcodeId).single();
+        return res.json({ ok: true, hash: data?.text || null });
+      }
+
       case "verifyAdmin": {
         // just verify the passcode is correct
         return res.json({ ok: true, admin: true });

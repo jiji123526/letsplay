@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, IS_MOCK } from "./backend.js";
-import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor } from "./admin-api.js";
+import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode } from "./admin-api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
 import { showGallery as showGalleryBase } from "./gallery.js";
@@ -821,10 +821,22 @@ function showPasscodeDialog(targetChannel, onSuccess) {
   const input = dialog.querySelector(".passcode-dialog-input");
   const errorEl = dialog.querySelector(".passcode-dialog-error");
 
+  // fetch passcode hash from DB, fall back to config.js
+  let storedHash = targetChannel.passcode || null;
+  let hashReady = IS_MOCK;
+  if (!IS_MOCK) {
+    adminGetPasscode(targetChannel.id).then(dbHash => {
+      if (dbHash) storedHash = dbHash;
+      hashReady = true;
+    }).catch(() => { hashReady = true; });
+  }
+
   function submit() {
+    if (!hashReady) return; // wait for DB fetch
     const code = input.value.trim();
+    if (!code) return;
     hashString(code).then(hashed => {
-      if (hashed === targetChannel.passcode) {
+      if (storedHash && hashed === storedHash) {
         dialog.remove();
         onSuccess();
       } else {
@@ -1870,11 +1882,13 @@ function showHeaderMenu(e) {
     <button class="header-menu-item" data-action="settings"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></svg> 설정</button>
     <button class="header-menu-item" data-action="gallery"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 갤러리</button>
     <button class="header-menu-item" data-action="links"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 링크</button>
+    ${isAdmin ? '<button class="header-menu-item header-menu-admin" data-action="admin"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z" fill="none" stroke="currentColor" stroke-width="2"/></svg> 관리자 설정</button>' : ''}
   `;
 
   menu.querySelector('[data-action="settings"]').addEventListener("click", () => { menu.remove(); showSettingsPanel(); });
   menu.querySelector('[data-action="gallery"]').addEventListener("click", () => { menu.remove(); showGallery(); });
   menu.querySelector('[data-action="links"]').addEventListener("click", () => { menu.remove(); showLinks(); });
+  if (isAdmin) menu.querySelector('[data-action="admin"]')?.addEventListener("click", () => { menu.remove(); showAdminPanel(); });
 
   // position below the menu button
   const rect = document.querySelector(".hdr-menu").getBoundingClientRect();
@@ -1932,7 +1946,6 @@ function showSettingsPanel() {
           </div>
         </div>
         <div class="settings-divider"></div>
-        ${isAdmin ? '<button class="settings-item settings-blocked-btn">차단된 사용자 관리</button>' : ''}
       </div>
     </div>
   `;
@@ -1983,13 +1996,207 @@ function showSettingsPanel() {
     }
   });
 
-  // blocked users (admin only)
-  const blockedBtn = panel.querySelector(".settings-blocked-btn");
-  if (blockedBtn) {
-    blockedBtn.addEventListener("click", () => { panel.remove(); showBlockedPanel(); });
+  document.body.appendChild(panel);
+}
+
+/* ============================================================
+   ADMIN PANEL — global admin settings
+   ============================================================ */
+function showAdminPanel() {
+  document.querySelector(".admin-panel")?.remove();
+
+  const panel = document.createElement("div");
+  panel.className = "admin-panel";
+
+  const currentColor = localStorage.getItem(`bubbleColor_${urlChannel}`) || currentChannelConfig.bubble || "#3b8df0";
+  const bubbleColors = ["#3b8df0", "#9b59b6", "#2e7d32", "#e74c3c", "#f39c12", "#1abc9c", "#e91e63"];
+
+  function darkenColor(hex, amount) {
+    const num = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, (num >> 16) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
   }
 
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>관리자 설정</h3>
+        <button class="admin-panel-close">✕</button>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-panel-section">
+          <button class="admin-panel-item" data-action="notice">
+            <span class="admin-panel-icon">📢</span>
+            <span class="admin-panel-label">전체 공지</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="color">
+            <span class="admin-panel-icon">🎨</span>
+            <span class="admin-panel-label">채널 기본 색상</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="passcode">
+            <span class="admin-panel-icon">🔒</span>
+            <span class="admin-panel-label">채널 비밀번호</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="blocked">
+            <span class="admin-panel-icon">🚫</span>
+            <span class="admin-panel-label">차단 사용자</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".admin-panel-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  // notice
+  panel.querySelector('[data-action="notice"]').addEventListener("click", () => {
+    panel.remove();
+    showNoticeInput();
+  });
+
+  // channel default color
+  panel.querySelector('[data-action="color"]').addEventListener("click", () => {
+    panel.remove();
+    showAdminColorPanel();
+  });
+
+  // passcode management
+  panel.querySelector('[data-action="passcode"]').addEventListener("click", () => {
+    panel.remove();
+    showAdminPasscodePanel();
+  });
+
+  // blocked users
+  panel.querySelector('[data-action="blocked"]').addEventListener("click", () => {
+    panel.remove();
+    showBlockedPanel();
+  });
+
   document.body.appendChild(panel);
+}
+
+function showAdminColorPanel() {
+  document.querySelector(".admin-color-panel")?.remove();
+
+  const currentColor = localStorage.getItem(`bubbleColor_${urlChannel}`) || currentChannelConfig.bubble || "#3b8df0";
+  const bubbleColors = ["#3b8df0", "#9b59b6", "#2e7d32", "#e74c3c", "#f39c12", "#1abc9c", "#e91e63"];
+
+  function darkenColor(hex, amount) {
+    const num = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, (num >> 16) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
+  }
+
+  const panel = document.createElement("div");
+  panel.className = "admin-color-panel";
+
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>채널 기본 색상</h3>
+        <button class="admin-color-close">✕</button>
+      </div>
+      <div class="admin-panel-body" style="padding:20px 18px;">
+        <div class="admin-color-info">이 채널의 기본 말풍선 색상을 설정합니다</div>
+        <div class="settings-color-grid" style="width:100%;max-width:200px;margin:16px auto;">
+          ${bubbleColors.map(c => `<button class="settings-color-btn ${c === currentColor ? "active" : ""}" data-color="${c}" style="background:${c};${c === currentColor ? `outline-color:${darkenColor(c, 50)}` : ""}"></button>`).join("")}
+          <button class="settings-color-btn settings-color-custom ${!bubbleColors.includes(currentColor) ? "active" : ""}" style="background:conic-gradient(red,orange,yellow,green,cyan,blue,violet,red);${!bubbleColors.includes(currentColor) ? `outline-color:${darkenColor(currentColor, 50)}` : ""}">
+            <input type="color" class="settings-color-input" value="${currentColor}" />
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".admin-color-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  panel.querySelectorAll(".settings-color-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (btn.classList.contains("settings-color-custom")) return;
+      panel.querySelectorAll(".settings-color-btn").forEach(b => { b.classList.remove("active"); b.style.outlineColor = "transparent"; });
+      btn.classList.add("active");
+      btn.style.outlineColor = darkenColor(btn.dataset.color, 50);
+      const color = btn.dataset.color;
+      localStorage.setItem(`bubbleColor_${urlChannel}`, color);
+      document.documentElement.style.setProperty("--bubble-sent", color);
+      if (!IS_MOCK) adminSetColor(urlChannel, color);
+    });
+  });
+
+  const colorInput = panel.querySelector(".settings-color-input");
+  let colorTimer = null;
+  colorInput.addEventListener("input", (e) => {
+    const color = e.target.value;
+    panel.querySelectorAll(".settings-color-btn").forEach(b => { b.classList.remove("active"); b.style.outlineColor = "transparent"; });
+    const customBtn = colorInput.closest(".settings-color-custom");
+    customBtn.classList.add("active");
+    customBtn.style.outlineColor = darkenColor(color, 50);
+    localStorage.setItem(`bubbleColor_${urlChannel}`, color);
+    document.documentElement.style.setProperty("--bubble-sent", color);
+    clearTimeout(colorTimer);
+    colorTimer = setTimeout(() => { if (!IS_MOCK) adminSetColor(urlChannel, color); }, 500);
+  });
+
+  document.body.appendChild(panel);
+}
+
+function showAdminPasscodePanel() {
+  document.querySelector(".admin-passcode-panel")?.remove();
+
+  const panel = document.createElement("div");
+  panel.className = "admin-passcode-panel";
+
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>채널 비밀번호</h3>
+        <button class="admin-passcode-close">✕</button>
+      </div>
+      <div class="admin-panel-body" style="padding:20px 18px;">
+        <div class="admin-color-info" style="margin-bottom:16px;">현재 채널: ${currentChannelConfig.name}</div>
+        <input class="passcode-dialog-input" type="text" placeholder="새 비밀번호 입력" autocomplete="off" style="margin-bottom:8px;" />
+        <div class="admin-color-info" style="margin-bottom:16px;font-size:11px;">비우면 비밀번호 해제</div>
+        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
+        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:600;"></div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".admin-passcode-close").addEventListener("click", () => panel.remove());
+  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+
+  const input = panel.querySelector(".passcode-dialog-input");
+  const resultEl = panel.querySelector(".admin-passcode-result");
+
+  panel.querySelector(".admin-passcode-save").addEventListener("click", async () => {
+    const code = input.value.trim();
+    if (!code) {
+      // clear passcode
+      if (!IS_MOCK) await adminSetPasscode(urlChannel, "");
+      resultEl.textContent = "비밀번호가 해제되었습니다";
+      resultEl.style.display = "block";
+    } else {
+      const hashed = await hashString(code);
+      if (!IS_MOCK) await adminSetPasscode(urlChannel, hashed);
+      resultEl.textContent = "✓ 저장되었습니다";
+      resultEl.style.display = "block";
+    }
+    input.value = "";
+    setTimeout(() => { resultEl.style.display = "none"; }, 2000);
+  });
+
+  document.body.appendChild(panel);
+  input.focus();
 }
 
 function showBlockedPanel() {

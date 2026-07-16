@@ -75,3 +75,14 @@ export async function adminGetColor(channelId) {
     return data.color || null;
   } catch { return null; }
 }
+
+export async function adminSetPasscode(channelId, hashedPasscode) {
+  return adminCall("setPasscode", { channelId, hashedPasscode });
+}
+
+export async function adminGetPasscode(channelId) {
+  try {
+    const data = await adminCall("getPasscode", { channelId });
+    return data.hash || null;
+  } catch { return null; }
+}
