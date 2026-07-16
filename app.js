@@ -142,9 +142,7 @@ function saveReportedIds() {
    ============================================================ */
 function render() {
   // check if user is near the bottom before re-rendering
-  const isFirstRender = !hasScrolledInitial;
-  const nearBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50;
-  const shouldAutoScroll = !skipNextScroll && (isFirstRender || (!initialLoad && nearBottom));
+  const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
   skipNextScroll = false;
 
   // save embed elements before clearing DOM
@@ -200,14 +198,24 @@ function render() {
   });
 
   // only auto-scroll if user was already near the bottom
-  if (shouldAutoScroll && !userInteracted) {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+  if (!hasScrolledInitial) {
     hasScrolledInitial = true;
-  } else if (shouldAutoScroll && !initialLoad) {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    const anchor = messagesEl.querySelector(".scroll-anchor");
+    if (anchor) anchor.scrollIntoView({ behavior: "auto" });
+  } else if (nearBottom && !userInteracted) {
+    const anchor = messagesEl.querySelector(".scroll-anchor");
+    if (anchor) anchor.scrollIntoView({ behavior: "auto" });
+  } else if (nearBottom && !initialLoad) {
+    const anchor = messagesEl.querySelector(".scroll-anchor");
+    if (anchor) anchor.scrollIntoView({ behavior: "smooth" });
   }
 
   // track message IDs for reaction-only change detection
+  // scroll anchor at the bottom
+  const anchor = document.createElement("div");
+  anchor.className = "scroll-anchor";
+  messagesEl.appendChild(anchor);
+
   prevMessageIds = messages.filter(m => !m.report).map(m => m.id);
 
   // restore search highlights if search is active
