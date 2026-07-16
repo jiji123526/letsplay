@@ -48,7 +48,7 @@ export const channels = [
   },
   {
     id: "nextpadre",
-    name: "__",
+    name: "-_-",
     emoji: "🎮",
     profile: "/profile2.jpg",
     passcode: "0411",
