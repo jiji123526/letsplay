@@ -26,20 +26,15 @@ const messagesEl = $("#messages");
 (function() {
   const savedSize = localStorage.getItem("fontSize");
   if (savedSize) document.documentElement.style.setProperty("--bubble-font-size", `${savedSize}px`);
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    document.documentElement.dataset.theme = savedTheme;
-  } else {
-    // follow device setting
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = prefersDark ? "dark" : "light";
-  }
-  // listen for device theme changes
+  // theme always follows system
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = prefersDark ? "dark" : "light";
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    if (!localStorage.getItem("theme")) {
-      document.documentElement.dataset.theme = e.matches ? "dark" : "light";
-    }
+    document.documentElement.dataset.theme = e.matches ? "dark" : "light";
   });
+  // restore saved bubble color
+  const savedColor = localStorage.getItem("bubbleColor");
+  if (savedColor) document.documentElement.style.setProperty("--bubble-sent", savedColor);
 })();
 
 /* ---------- local state ---------- */
@@ -497,6 +492,13 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           } else {
             fetchLinkPreview(fullUrl, bubble);
           }
+        });
+        // clean up whitespace around hidden links to prevent blank lines with pre-wrap
+        bubble.querySelectorAll('.bubble-link[style*="display: none"]').forEach((link) => {
+          const prev = link.previousSibling;
+          const next = link.nextSibling;
+          if (prev && prev.nodeType === 3) prev.textContent = prev.textContent.replace(/\n\s*$/, "");
+          if (next && next.nodeType === 3) next.textContent = next.textContent.replace(/^\s*\n/, "");
         });
       } else {
         bubble.textContent = m.text;
@@ -1249,7 +1251,7 @@ const sendBtn = $("#sendBtn");
 let replyingTo = null; // { id, text } of message being replied to
 
 function toggleSend() {
-  const has = input.value.trim().length > 0 || pendingPhoto;
+  const has = input.value.trim().length > 0 || pendingPhotos.length > 0;
   sendBtn.hidden = !has;
 }
 
@@ -1317,7 +1319,7 @@ function isRateLimited() {
 
 async function send() {
   const text = input.value.trim();
-  if (!text && !pendingPhoto || !myUid) return;
+  if (!text && !pendingPhotos.length || !myUid) return;
 
   // blocked user petition: send one DM then lock
   const isBlocked = !isAdmin && blockedUids.has(myUid);
@@ -1330,11 +1332,11 @@ async function send() {
     // send as DM petition with the blocked reason quoted
     const blockEntry = blockedList.find((b) => b.uid === myUid);
     const reason = blockEntry && blockEntry.reason ? `\n[차단 사유: "${blockEntry.reason}"]` : "";
-    await sendDm({ uid: myUid, nick: myNick, text: `[이의 제기] ${text}${reason}`, image: pendingPhoto || undefined });
+    await sendDm({ uid: myUid, nick: myNick, text: `[이의 제기] ${text}${reason}`, image: pendingPhotos[0]?.blob || undefined });
     localStorage.setItem("petitionSent", myUid);
     input.value = "";
     input.style.height = "auto";
-    pendingPhoto = null;
+    pendingPhotos = [];
     removePhotoPreview();
     checkIfBlocked();
     banner("이의 제기가 전송되었습니다", "#ff3b30");
@@ -1355,32 +1357,34 @@ async function send() {
   const nick = isAdmin ? "관리자" : myNick;
   const sendUid = isAdmin ? "admin" : myUid;
   const msgData = { uid: sendUid, nick, text, is_admin: isAdmin };
-  let photoData = null;
-  let photoDims = null;
-  if (pendingPhoto) {
-    photoData = pendingPhoto;
-    photoDims = pendingPhotoDimensions;
-    pendingPhoto = null;
-    pendingPhotoDimensions = null;
-    removePhotoPreview();
-  }
+  const photos = [...pendingPhotos];
+  pendingPhotos = [];
+  removePhotoPreview();
   if (replyingTo) { msgData.replyTo = replyingTo.id; }
   clearReply();
   try {
     if (dmMode && !isAdmin) {
-      await sendDm({ uid: sendUid, nick, text, image: photoData, imageW: photoDims?.width, imageH: photoDims?.height });
+      await sendDm({ uid: sendUid, nick, text, image: photos[0]?.blob, imageW: photos[0]?.dimensions?.width, imageH: photos[0]?.dimensions?.height });
       dmMode = false;
       updateDmUI();
       banner("찍이에게 전송됨", "#9b59b6");
     } else {
-      // save photo to gallery first, then reference it in the message
-      if (photoData) {
-        const galleryId = await saveToGallery(photoData);
+      // send text message (with first photo attached if any)
+      if (photos.length > 0) {
+        const first = photos[0];
+        const galleryId = await saveToGallery(first.blob);
         msgData.galleryId = galleryId;
-        msgData.imageW = photoDims?.width;
-        msgData.imageH = photoDims?.height;
+        msgData.imageW = first.dimensions?.width;
+        msgData.imageH = first.dimensions?.height;
       }
       await sendMessage(msgData);
+
+      // send remaining photos as separate messages
+      for (let i = 1; i < photos.length; i++) {
+        const p = photos[i];
+        const galleryId = await saveToGallery(p.blob);
+        await sendMessage({ uid: sendUid, nick, text: "", is_admin: isAdmin, galleryId, imageW: p.dimensions?.width, imageH: p.dimensions?.height });
+      }
     }
     sendTimestamps.push(Date.now());
     input.blur(); // dismiss keyboard
@@ -1440,6 +1444,7 @@ const photoBtn = $("#photoBtn");
 const photoInput = $("#photoInput");
 let pendingPhoto = null; // stores the compressed Blob/File until user sends
 let pendingPhotoDimensions = null; // { width, height } of pending photo
+let pendingPhotos = []; // array of { blob, dimensions, previewUrl } for multi-select
 let dmMode = false; // DM to admin mode
 
 photoBtn.addEventListener("click", (e) => {
@@ -1596,9 +1601,37 @@ function updateDmUI() {
 }
 
 photoInput.addEventListener("change", async () => {
-  const file = photoInput.files[0];
-  if (!file) return;
+  const files = [...photoInput.files];
+  if (!files.length) return;
   photoInput.value = "";
+
+  // multiple files → queue all with previews
+  if (files.length > 1) {
+    for (const file of files) {
+      const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+      if (!isGif && file.size > 50 * 1024 * 1024) continue; // skip oversized
+
+      let photoBlob, dims;
+      if (isGif) {
+        photoBlob = file;
+        dims = await getImageDimensions(file);
+      } else {
+        const result = await compressImage(file, 2000, 0.85);
+        photoBlob = result.blob;
+        dims = { width: result.width, height: result.height };
+      }
+
+      const previewUrl = URL.createObjectURL(photoBlob);
+      pendingPhotos.push({ blob: photoBlob, dimensions: dims, previewUrl });
+    }
+    showMultiPhotoPreview();
+    input.focus();
+    toggleSend();
+    return;
+  }
+
+  // single file → preview then send
+  const file = files[0];
 
   // check size limit (50MB max for Supabase Storage) — skip for GIFs
   const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
@@ -1621,34 +1654,55 @@ photoInput.addEventListener("change", async () => {
 
   // use object URL for preview (zero-copy, no base64)
   const previewUrl = URL.createObjectURL(photoBlob);
-  pendingPhoto = photoBlob;
-  pendingPhotoDimensions = photoDimensions;
-  showPhotoPreview(previewUrl);
+  pendingPhotos.push({ blob: photoBlob, dimensions: photoDimensions, previewUrl });
+  showMultiPhotoPreview();
   input.focus();
   toggleSend();
 });
 
-function showPhotoPreview(previewUrl) {
+function showMultiPhotoPreview() {
   removePhotoPreview();
+  if (pendingPhotos.length === 0) return;
+
   const preview = document.createElement("div");
   preview.className = "photo-preview";
-  preview.innerHTML = `
-    <img src="${previewUrl}" class="photo-preview-img" />
-    <button class="photo-preview-close">✕</button>
-  `;
-  preview.querySelector(".photo-preview-close").addEventListener("click", () => {
-    pendingPhoto = null;
-    removePhotoPreview();
-    toggleSend();
+
+  const grid = document.createElement("div");
+  grid.className = "photo-preview-grid";
+
+  pendingPhotos.forEach((p, i) => {
+    const wrap = document.createElement("div");
+    wrap.className = "photo-preview-thumb";
+    wrap.innerHTML = `
+      <img src="${p.previewUrl}" class="photo-preview-img" />
+      <button class="photo-preview-remove" data-idx="${i}">✕</button>
+    `;
+    grid.appendChild(wrap);
   });
+
+  preview.appendChild(grid);
+
+  // remove individual photos
+  preview.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest(".photo-preview-remove");
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.idx);
+      URL.revokeObjectURL(pendingPhotos[idx].previewUrl);
+      pendingPhotos.splice(idx, 1);
+      showMultiPhotoPreview();
+      toggleSend();
+    }
+  });
+
   document.querySelector(".composer").insertAdjacentElement("beforebegin", preview);
 }
 
 function removePhotoPreview() {
   const existing = document.querySelector(".photo-preview");
   if (existing) {
-    const img = existing.querySelector("img");
-    if (img && img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+    existing.querySelectorAll("img").forEach((img) => {
+      if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+    });
     existing.remove();
   }
 }
@@ -1816,6 +1870,16 @@ function showSettingsPanel() {
   panel.className = "settings-panel";
 
   const currentSize = parseInt(localStorage.getItem("fontSize") || "17");
+  const currentColor = localStorage.getItem("bubbleColor") || currentChannelConfig.bubble || "#3b8df0";
+  const bubbleColors = ["#3b8df0", "#9b59b6", "#2e7d32", "#e74c3c", "#f39c12", "#1abc9c", "#e91e63"];
+
+  function darkenColor(hex, amount) {
+    const num = parseInt(hex.slice(1), 16);
+    const r = Math.max(0, (num >> 16) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
+  }
 
   panel.innerHTML = `
     <div class="settings-panel-content">
@@ -1833,10 +1897,12 @@ function showSettingsPanel() {
           </div>
         </div>
         <div class="settings-item">
-          <span class="settings-label">테마</span>
-          <div class="settings-theme-control">
-            <button class="settings-theme-btn" data-theme="light">라이트</button>
-            <button class="settings-theme-btn" data-theme="dark">다크</button>
+          <span class="settings-label">말풍선 색상</span>
+          <div class="settings-color-grid">
+            ${bubbleColors.map(c => `<button class="settings-color-btn ${c === currentColor ? "active" : ""}" data-color="${c}" style="background:${c};${c === currentColor ? `outline-color:${darkenColor(c, 50)}` : ""}"></button>`).join("")}
+            <button class="settings-color-btn settings-color-custom ${!bubbleColors.includes(currentColor) ? "active" : ""}" style="background:conic-gradient(red,orange,yellow,green,cyan,blue,violet,red);${!bubbleColors.includes(currentColor) ? `outline-color:${darkenColor(currentColor, 50)}` : ""}">
+              <input type="color" class="settings-color-input" value="${currentColor}" />
+            </button>
           </div>
         </div>
         <div class="settings-divider"></div>
@@ -1860,12 +1926,29 @@ function showSettingsPanel() {
     });
   });
 
-  // theme controls
-  panel.querySelectorAll(".settings-theme-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.documentElement.dataset.theme = btn.dataset.theme;
-      localStorage.setItem("theme", btn.dataset.theme);
+  // bubble color controls
+  panel.querySelectorAll(".settings-color-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (btn.classList.contains("settings-color-custom")) return; // handled by input
+      panel.querySelectorAll(".settings-color-btn").forEach(b => { b.classList.remove("active"); b.style.outlineColor = "transparent"; });
+      btn.classList.add("active");
+      btn.style.outlineColor = darkenColor(btn.dataset.color, 50);
+      const color = btn.dataset.color;
+      localStorage.setItem("bubbleColor", color);
+      document.documentElement.style.setProperty("--bubble-sent", color);
     });
+  });
+
+  // custom color picker
+  const colorInput = panel.querySelector(".settings-color-input");
+  colorInput.addEventListener("input", (e) => {
+    const color = e.target.value;
+    panel.querySelectorAll(".settings-color-btn").forEach(b => { b.classList.remove("active"); b.style.outlineColor = "transparent"; });
+    const customBtn = colorInput.closest(".settings-color-custom");
+    customBtn.classList.add("active");
+    customBtn.style.outlineColor = darkenColor(color, 50);
+    localStorage.setItem("bubbleColor", color);
+    document.documentElement.style.setProperty("--bubble-sent", color);
   });
 
   // blocked users (admin only)
