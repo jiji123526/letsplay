@@ -32,9 +32,7 @@ const messagesEl = $("#messages");
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
     document.documentElement.dataset.theme = e.matches ? "dark" : "light";
   });
-  // restore saved bubble color
-  const savedColor = localStorage.getItem("bubbleColor");
-  if (savedColor) document.documentElement.style.setProperty("--bubble-sent", savedColor);
+  // restore saved bubble color (applied after channel detection below)
 })();
 
 /* ---------- local state ---------- */
@@ -719,7 +717,10 @@ sessionStorage.removeItem("ch_switching");
 
 document.querySelector(".hdr-name").textContent = currentChannelConfig.name;
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
-if (currentChannelConfig.bubble && !localStorage.getItem("bubbleColor")) {
+const savedBubbleColor = localStorage.getItem(`bubbleColor_${urlChannel}`);
+if (savedBubbleColor) {
+  document.documentElement.style.setProperty("--bubble-sent", savedBubbleColor);
+} else if (currentChannelConfig.bubble) {
   document.documentElement.style.setProperty("--bubble-sent", currentChannelConfig.bubble);
 }
 
@@ -1876,7 +1877,7 @@ function showSettingsPanel() {
   panel.className = "settings-panel";
 
   const currentSize = parseInt(localStorage.getItem("fontSize") || "17");
-  const currentColor = localStorage.getItem("bubbleColor") || currentChannelConfig.bubble || "#3b8df0";
+  const currentColor = localStorage.getItem(`bubbleColor_${urlChannel}`) || currentChannelConfig.bubble || "#3b8df0";
   const bubbleColors = ["#3b8df0", "#9b59b6", "#2e7d32", "#e74c3c", "#f39c12", "#1abc9c", "#e91e63"];
 
   function darkenColor(hex, amount) {
@@ -1940,7 +1941,7 @@ function showSettingsPanel() {
       btn.classList.add("active");
       btn.style.outlineColor = darkenColor(btn.dataset.color, 50);
       const color = btn.dataset.color;
-      localStorage.setItem("bubbleColor", color);
+      localStorage.setItem(`bubbleColor_${urlChannel}`, color);
       document.documentElement.style.setProperty("--bubble-sent", color);
     });
   });
@@ -1953,7 +1954,7 @@ function showSettingsPanel() {
     const customBtn = colorInput.closest(".settings-color-custom");
     customBtn.classList.add("active");
     customBtn.style.outlineColor = darkenColor(color, 50);
-    localStorage.setItem("bubbleColor", color);
+    localStorage.setItem(`bubbleColor_${urlChannel}`, color);
     document.documentElement.style.setProperty("--bubble-sent", color);
   });
 
