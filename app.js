@@ -426,7 +426,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
     /* soft-deleted messages */
     if (m.deleted) {
-      bubble.textContent = "삭제된 메세지입니다";
+      bubble.textContent = "삭제된 채팅입니다";
       bubble.classList.add("deleted");
     } else if (m.galleryId || m.image) {
       // look up image from gallery collection, fall back to m.image for old messages
@@ -1053,7 +1053,7 @@ function addReaction(msgId, emoji) {
 
 async function reportMessage(msg) {
   const preview = msg.text.length > 50 ? msg.text.slice(0, 50) + "…" : msg.text;
-  const reportText = `🚨 신고된 메시지: "${preview}"`;
+  const reportText = `🚨 신고된 채팅: "${preview}"`;
   const sendUid = myUid;
   try {
     await sendMessage({ uid: sendUid, nick: "신고", text: reportText, is_admin: false, report: true, reportedMsgId: msg.id });
@@ -1200,7 +1200,7 @@ async function send() {
   const isBlocked = !isAdmin && blockedUids.has(myUid);
   const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
   if (isBlocked && hasPetitioned) {
-    banner("차단되어 메시지를 보낼 수 없습니다");
+    banner("차단되어 채팅을 보낼 수 없습니다");
     return;
   }
   if (isBlocked && !hasPetitioned) {
@@ -1219,11 +1219,11 @@ async function send() {
   }
 
   if (checkIfBlocked()) {
-    banner("차단되어 메시지를 보낼 수 없습니다");
+    banner("차단되어 채팅을 보낼 수 없습니다");
     return;
   }
   if (isRateLimited()) {
-    banner("메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해주세요.");
+    banner("채팅을 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해주세요.");
     return;
   }
   input.value = "";
@@ -1299,7 +1299,7 @@ function scrollToMessage(msgId) {
     setTimeout(() => el.classList.remove("highlight-flash"), 2000);
   } else {
     // message might not be loaded yet — try loading older messages
-    banner("해당 메시지를 찾을 수 없습니다");
+    banner("해당 채팅을 찾을 수 없습니다");
   }
 }
 
@@ -1308,7 +1308,7 @@ function scrollToMessageSilent(msgId) {
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   } else {
-    banner("해당 메시지를 찾을 수 없습니다");
+    banner("해당 채팅을 찾을 수 없습니다");
   }
 }
 
@@ -1358,7 +1358,8 @@ function showNoticeInput() {
   const title = prompt("공지 제목:");
   if (!title || !title.trim()) return;
   const body = prompt("공지 내용 (선택사항, 빈칸이면 생략):");
-  const notice = body && body.trim()
+  if (body === null) return; // user cancelled
+  const notice = body.trim()
     ? JSON.stringify({ title: title.trim(), body: body.trim() })
     : title.trim();
   setNoticeBanner(notice);
@@ -1432,7 +1433,7 @@ function showPlusMenu(e) {
   const menu = document.createElement("div");
   menu.className = "plus-menu";
   menu.innerHTML = `
-    <button class="plus-menu-item" data-action="dm"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> ${dmMode ? "일반 메시지로 전환" : "비밀 메세지"}</button>
+    <button class="plus-menu-item" data-action="dm"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> ${dmMode ? "일반 채팅으로 전환" : "비밀 메시지"}</button>
     <button class="plus-menu-item" data-action="photo"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg> 사진 보내기</button>
   `;
 
@@ -1627,18 +1628,18 @@ function showNoticePanel() {
           <h4>이용 안내</h4>
           <ul>
             <li>꾹 눌러서 리액션/답장/신고 가능</li>
-            <li>본인이 쓴 메세지 삭제 가능, 답장 달렸을 시 삭제된 메세지로 표시</li>
-            <li>신고 철회 가능, 신고자에게만 신고 메세지 플래그</li>
-            <li>+ 메뉴: 사진 보내기 / 비밀 메세지</li>
-            <li>비밀 메세지는 찍이한테만 보이고 보낸 사람한테도 안보임</li>
+            <li>본인이 쓴 채팅 삭제 가능, 답장 달렸을 시 삭제된 채팅으로 표시</li>
+            <li>신고 철회 가능</li>
+            <li>비밀 메시지는 찍이한테만 보이고 보낸 사람한테도 안보임</li>
             <li>우측 상단 메뉴에 설정/갤러리/링크</li>
+            <li>사진/링크 타고 채팅으로 이동 가능</li>
           </ul>
         </div>
         <div class="notice-section">
           <h4>규칙</h4>
           <ul>
             <li>호모:순덕 비율 알잘딱깔센</li>
-            <li>빡치는 메세지 있을경우 플 늘리지 말고 신고하면 다지워줌</li>
+            <li>빡치는 채팅 있을경우 플 늘리지 말고 신고하면 다지워줌</li>
             <li>차단당한거 억울하면 탄원서 제출가능 (기회1번)</li>
           </ul>
         </div>
