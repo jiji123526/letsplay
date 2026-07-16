@@ -87,6 +87,14 @@ function toggleSearchBar() {
   prevBtn.addEventListener("click", () => navigateSearch(-1));
   nextBtn.addEventListener("click", () => navigateSearch(1));
   bar.querySelector(".search-close-btn").addEventListener("click", closeSearchBar);
+
+  // treat keyboard dismiss (blur) as submit
+  searchInput.addEventListener("blur", () => {
+    const query = searchInput.value.trim();
+    if (query && searchResults.length === 0) {
+      performSearch(query);
+    }
+  });
 }
 
 export function closeSearchBar() {
