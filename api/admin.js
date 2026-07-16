@@ -85,6 +85,21 @@ export default async function handler(req, res) {
         return res.json({ ok: true });
       }
 
+      case "setColor": {
+        const { channelId, color } = payload;
+        const colorId = `adminColor_${channelId || "main"}`;
+        const { error } = await supabase.from("config").upsert({ id: colorId, text: color, channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return res.json({ ok: true });
+      }
+
+      case "getColor": {
+        const { channelId } = payload;
+        const colorId = `adminColor_${channelId || "main"}`;
+        const { data } = await supabase.from("config").select("text").eq("id", colorId).single();
+        return res.json({ ok: true, color: data?.text || null });
+      }
+
       case "verifyAdmin": {
         // just verify the passcode is correct
         return res.json({ ok: true, admin: true });

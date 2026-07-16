@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, IS_MOCK } from "./backend.js";
-import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice } from "./admin-api.js";
+import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor } from "./admin-api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
 import { showGallery as showGalleryBase } from "./gallery.js";
@@ -723,6 +723,15 @@ if (savedBubbleColor) {
 } else if (currentChannelConfig.bubble) {
   document.documentElement.style.setProperty("--bubble-sent", currentChannelConfig.bubble);
 }
+// admin: fetch synced color from server after auth
+async function syncAdminColor() {
+  if (!isAdmin || IS_MOCK) return;
+  const color = await adminGetColor(urlChannel);
+  if (color) {
+    localStorage.setItem(`bubbleColor_${urlChannel}`, color);
+    document.documentElement.style.setProperty("--bubble-sent", color);
+  }
+}
 
 /* ---- Channel picker (tap on avatar) ---- */
 function showChannelPicker() {
@@ -851,6 +860,7 @@ configureSearch({
 initAuth().then((uid) => {
   myUid = uid;
   myNick = anonNameFor(uid);
+  syncAdminColor();
   showEntryGate();          // pick a role (anon by default), then enter
 }).catch((e) => {
   console.error("auth failed", e);
@@ -1943,6 +1953,7 @@ function showSettingsPanel() {
       const color = btn.dataset.color;
       localStorage.setItem(`bubbleColor_${urlChannel}`, color);
       document.documentElement.style.setProperty("--bubble-sent", color);
+      if (isAdmin && !IS_MOCK) adminSetColor(urlChannel, color);
     });
   });
 
@@ -1956,6 +1967,7 @@ function showSettingsPanel() {
     customBtn.style.outlineColor = darkenColor(color, 50);
     localStorage.setItem(`bubbleColor_${urlChannel}`, color);
     document.documentElement.style.setProperty("--bubble-sent", color);
+    if (isAdmin && !IS_MOCK) adminSetColor(urlChannel, color);
   });
 
   // blocked users (admin only)

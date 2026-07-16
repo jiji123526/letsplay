@@ -64,3 +64,14 @@ export async function adminDeleteGallery(id) {
 export async function adminSetNotice(text, channelId) {
   return adminCall("setNotice", { text, channelId });
 }
+
+export async function adminSetColor(channelId, color) {
+  return adminCall("setColor", { channelId, color });
+}
+
+export async function adminGetColor(channelId) {
+  try {
+    const data = await adminCall("getColor", { channelId });
+    return data.color || null;
+  } catch { return null; }
+}
