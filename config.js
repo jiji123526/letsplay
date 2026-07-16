@@ -22,7 +22,7 @@ export const channels = [
     name: "--",
     emoji: "🐮",
     profile: "/profile.jpg",
-    passcode: "1225",
+    passcode: "6ecf763ff6e7cef7b47e6611e1bf76fe2608a2e32a97b2d88b083ae1d8d02c82",
     bubble: "#3b8df0",
     notice: [
       {
@@ -51,7 +51,7 @@ export const channels = [
     name: "-_-",
     emoji: "🎮",
     profile: "/profile2.jpg",
-    passcode: "0411",
+    passcode: "d20bdc364b3d7dfdcd81be5a3fd192d0f513fa79e92463bf0ed9efd2f46c243b",
     bubble: "#2e7d32",
     notice: [
       {

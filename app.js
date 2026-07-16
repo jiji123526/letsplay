@@ -22,6 +22,12 @@ import "emoji-picker-element";
 const $ = (s) => document.querySelector(s);
 const messagesEl = $("#messages");
 
+/* SHA-256 hash utility for passcode comparison */
+async function hashString(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 /* restore saved settings */
 (function() {
   const savedSize = localStorage.getItem("fontSize");
@@ -817,14 +823,16 @@ function showPasscodeDialog(targetChannel, onSuccess) {
 
   function submit() {
     const code = input.value.trim();
-    if (code === targetChannel.passcode) {
-      dialog.remove();
-      onSuccess();
-    } else {
-      errorEl.style.display = "block";
-      input.value = "";
-      input.focus();
-    }
+    hashString(code).then(hashed => {
+      if (hashed === targetChannel.passcode) {
+        dialog.remove();
+        onSuccess();
+      } else {
+        errorEl.style.display = "block";
+        input.value = "";
+        input.focus();
+      }
+    });
   }
 
   dialog.querySelector(".passcode-dialog-confirm").addEventListener("click", submit);
