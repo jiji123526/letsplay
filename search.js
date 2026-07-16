@@ -74,6 +74,7 @@ function toggleSearchBar() {
   searchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.isComposing) {
       e.preventDefault();
+      searchInput.blur(); // dismiss keyboard
       if (searchResults.length === 0) {
         performSearch(searchInput.value.trim());
       } else {
