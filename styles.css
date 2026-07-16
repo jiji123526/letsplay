@@ -1285,7 +1285,7 @@ emoji-picker {
 .notice-banner-title {
   flex: 1;
   font-size: var(--bubble-font-size, 14px);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--gray-text);
   line-height: 1.4;
   overflow: hidden;
@@ -1306,7 +1306,7 @@ emoji-picker {
   border: none;
   cursor: pointer;
   color: var(--meta);
-  font-size: 16px;
+  font-size: var(--bubble-font-size, 16px);
   padding: 0 4px;
   flex-shrink: 0;
 }
@@ -1315,7 +1315,7 @@ emoji-picker {
   border: none;
   cursor: pointer;
   color: var(--meta);
-  font-size: 16px;
+  font-size: var(--bubble-font-size, 16px);
   padding: 0 4px;
 }
 [data-theme="dark"] .notice-banner {
