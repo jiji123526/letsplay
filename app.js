@@ -200,14 +200,9 @@ function render() {
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
     hasScrolledInitial = true;
-    const anchor = messagesEl.querySelector(".scroll-anchor");
-    if (anchor) anchor.scrollIntoView({ behavior: "auto" });
-  } else if (nearBottom && !userInteracted) {
-    const anchor = messagesEl.querySelector(".scroll-anchor");
-    if (anchor) anchor.scrollIntoView({ behavior: "auto" });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   } else if (nearBottom && !initialLoad) {
-    const anchor = messagesEl.querySelector(".scroll-anchor");
-    if (anchor) anchor.scrollIntoView({ behavior: "smooth" });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   // track message IDs for reaction-only change detection
@@ -2262,6 +2257,25 @@ function startChat() {
   messagesEl.addEventListener("touchstart", stopAutoScroll, { once: true });
   messagesEl.addEventListener("wheel", stopAutoScroll, { once: true });
   input.addEventListener("focus", stopAutoScroll, { once: true });
+
+  // keep scrolling to bottom as images load during initial period
+  const imgObserver = new MutationObserver(() => {
+    if (userInteracted || hasScrolledInitial === false) return;
+    if (initialLoad) {
+      messagesEl.querySelectorAll("img").forEach((img) => {
+        if (!img.dataset.scrollBound) {
+          img.dataset.scrollBound = "1";
+          img.addEventListener("load", () => {
+            if (!userInteracted && initialLoad) {
+              const anchor = messagesEl.querySelector(".scroll-anchor");
+              if (anchor) anchor.scrollIntoView({ behavior: "auto" });
+            }
+          }, { once: true });
+        }
+      });
+    }
+  });
+  imgObserver.observe(messagesEl, { childList: true, subtree: true });
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   let galleryLoaded = false;
   subscribe((list) => {
