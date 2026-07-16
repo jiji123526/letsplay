@@ -37,4 +37,5 @@ export const setNotice          = impl.setNotice;
 export const subscribeNotice    = impl.subscribeNotice;
 export const searchMessages     = impl.searchMessages || (async () => []);
 export const loadMoreMessages   = impl.loadMoreMessages || (async () => []);
+export const setChannel         = impl.setChannel || (() => {});
 export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

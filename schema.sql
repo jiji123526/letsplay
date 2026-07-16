@@ -23,6 +23,7 @@ create table messages (
   image text,
   image_w integer,
   image_h integer,
+  channel_id text default 'main',
   created_at timestamptz default now()
 );
 
@@ -31,6 +32,7 @@ create table blocked (
   id uuid default gen_random_uuid() primary key,
   uid text not null,
   reason text default '',
+  channel_id text default 'main',
   created_at timestamptz default now()
 );
 
@@ -42,6 +44,7 @@ create table dm (
   nick text,
   text text default '',
   image text,
+  channel_id text default 'main',
   created_at timestamptz default now()
 );
 
@@ -50,6 +53,7 @@ create table gallery (
   id uuid default gen_random_uuid() primary key,
   image text not null,
   image_id text,
+  channel_id text default 'main',
   created_at timestamptz default now()
 );
 
@@ -57,6 +61,7 @@ create table gallery (
 create table config (
   id text primary key,
   text text default '',
+  channel_id text default 'main',
   updated_at timestamptz default now()
 );
 

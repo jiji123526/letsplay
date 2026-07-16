@@ -92,6 +92,8 @@ body {
   flex: 1;
   display: flex; flex-direction: column; align-items: center;
   gap: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 .hdr-avatar {
   width: calc(var(--bubble-font-size, 17px) + 24px);
@@ -169,7 +171,7 @@ body {
 }
 
 .bubble.sent {
-  background: #3b8df0;
+  background: var(--bubble-sent, #3b8df0);
   color: #fff;
   border-bottom-right-radius: 20px;
 }
@@ -206,7 +208,7 @@ body {
 
 .bubble.tail.sent::before {
   right: -6px;
-  background: #3b8df0;
+  background: var(--bubble-sent, #3b8df0);
   border-bottom-left-radius: 14px 12px;
 }
 .bubble.tail.sent::after {
@@ -312,7 +314,7 @@ body {
 }
 .mic-btn { background: none; color: var(--meta); }
 .send-btn {
-  background: #3b8df0;
+  background: var(--bubble-sent, #3b8df0);
   border-radius: 50%;
 }
 
@@ -1379,7 +1381,7 @@ emoji-picker {
 /* ---------- reply color distinction ---------- */
 /* "mine" replies = blue, "other" replies = gray, regardless of side */
 .bubble.reply-mine {
-  background: #3b8df0 !important;
+  background: var(--bubble-sent, #3b8df0) !important;
   color: #fff !important;
 }
 .bubble.reply-other {
@@ -1632,4 +1634,112 @@ emoji-picker {
 .bubble-col:has(.embed-twitter),
 .bubble-col:has(.embed-instagram) {
   max-width: 340px;
+}
+
+/* ---------- channel picker ---------- */
+.channel-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: ctxFade .2s ease;
+}
+.channel-picker-content {
+  width: 100%;
+  max-width: 300px;
+  background: rgba(255,255,255,.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.15);
+}
+.channel-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.channel-picker-header h3 {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--gray-text);
+}
+.channel-picker-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--meta);
+  font-size: 18px;
+}
+.channel-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
+}
+.channel-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  padding: 12px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, border-color .15s;
+}
+.channel-picker-item:active {
+  background: #f4f4f4;
+}
+.channel-picker-item.active {
+  border-color: var(--tint);
+  background: rgba(59,141,240,.06);
+}
+.channel-picker-profile {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e8e8e8;
+}
+.channel-picker-item.active .channel-picker-profile {
+  border-color: var(--tint);
+}
+.channel-picker-emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+.channel-picker-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-text);
+  text-align: center;
+}
+.channel-picker-check {
+  color: var(--tint);
+  font-weight: 700;
+  font-size: 16px;
+}
+[data-theme="dark"] .channel-picker-item {
+  border-color: transparent;
+}
+[data-theme="dark"] .channel-picker-content {
+  background: rgba(30,30,30,.75);
+}
+[data-theme="dark"] .channel-picker-item:active {
+  background: #2a2a2a;
+}
+[data-theme="dark"] .channel-picker-item.active {
+  border-color: var(--tint);
+  background: rgba(59,141,240,.12);
+}
+[data-theme="dark"] .channel-picker-profile {
+  border-color: #444;
 }

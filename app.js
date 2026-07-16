@@ -9,13 +9,14 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, IS_MOCK } from "./backend.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, IS_MOCK } from "./backend.js";
 import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice } from "./admin-api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
 import { showGallery as showGalleryBase } from "./gallery.js";
 import { showLinks as showLinksBase } from "./links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./search.js";
+import { channels } from "./config.js";
 import "emoji-picker-element";
 
 const $ = (s) => document.querySelector(s);
@@ -701,6 +702,88 @@ function labelForDay(d) {
 function anonNameFor(uid) {
   // stable per-user tag like "익명#3f9a" so users are distinguishable
   return "익명#" + String(uid).slice(-4);
+}
+
+/* ---- Set channel from URL (/ch/xxx or ?ch=xxx, default "main") ---- */
+const pathMatch = window.location.pathname.match(/^\/ch\/([^/]+)/);
+const urlChannel = pathMatch ? pathMatch[1] : (new URLSearchParams(window.location.search).get("ch") || "main");
+setChannel(urlChannel);
+
+/* ---- Update header to reflect current channel ---- */
+const currentChannelConfig = channels.find(c => c.id === urlChannel) || channels[0];
+
+// gate: if channel requires passcode and user hasn't entered it
+// only prompt if navigating from another channel (not direct external access)
+if (currentChannelConfig.passcode && !isAdmin) {
+  const accessKey = `ch_access_${urlChannel}`;
+  const fromPicker = sessionStorage.getItem("ch_switching") === "true";
+  sessionStorage.removeItem("ch_switching");
+  if (fromPicker && localStorage.getItem(accessKey) !== "true") {
+    const code = prompt(`"${currentChannelConfig.name}" 입장 코드를 입력하세요:`);
+    if (!code || code.trim() !== currentChannelConfig.passcode) {
+      window.location.href = "/";
+    } else {
+      localStorage.setItem(accessKey, "true");
+    }
+  }
+}
+
+document.querySelector(".hdr-name").textContent = currentChannelConfig.name;
+document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
+if (currentChannelConfig.bubble) {
+  document.documentElement.style.setProperty("--bubble-sent", currentChannelConfig.bubble);
+}
+
+/* ---- Channel picker (tap on avatar) ---- */
+function showChannelPicker() {
+  document.querySelector(".channel-picker")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "channel-picker";
+  overlay.innerHTML = `
+    <div class="channel-picker-content">
+      <div class="channel-picker-grid">
+        ${channels.map(ch => `
+          <button class="channel-picker-item ${ch.id === urlChannel ? "active" : ""}" data-ch="${ch.id}">
+            <img class="channel-picker-profile" src="${ch.profile}" alt="${ch.name}" />
+            <span class="channel-picker-name">${ch.name}</span>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelectorAll(".channel-picker-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const ch = btn.dataset.ch;
+      if (ch !== urlChannel) {
+        const targetChannel = channels.find(c => c.id === ch);
+        // check if channel requires a passcode (admins skip)
+        if (targetChannel?.passcode && !isAdmin) {
+          const code = prompt("입장 코드를 입력하세요:");
+          if (!code || code.trim() !== targetChannel.passcode) {
+            banner("입장 코드가 틀렸습니다");
+            return;
+          }
+        }
+        const url = new URL(window.location);
+        if (ch === "main") {
+          url.pathname = "/";
+          url.searchParams.delete("ch");
+        } else {
+          url.pathname = `/ch/${ch}`;
+          url.searchParams.delete("ch");
+        }
+        sessionStorage.setItem("ch_switching", "true");
+        window.location.href = url.toString();
+      } else {
+        overlay.remove();
+      }
+    });
+  });
+
+  document.body.appendChild(overlay);
 }
 
 /* ---- Initialize search module ---- */
@@ -1559,14 +1642,16 @@ function refilterMessages() {
 }
 
 (function() {
-  const avatar = document.querySelector(".chat-header");
+  const avatar = document.querySelector(".hdr-contact");
   if (!avatar) return;
   let pressTimer = null;
+  let pressTriggered = false;
 
   avatar.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
+    pressTriggered = false;
     pressTimer = setTimeout(async () => {
       pressTimer = null;
+      pressTriggered = true;
       if (isAdmin) {
         isAdmin = false;
         localStorage.setItem("isAdmin", "false");
@@ -1597,8 +1682,20 @@ function refilterMessages() {
     }, 800);
   });
 
-  avatar.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+  avatar.addEventListener("pointerup", () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+      // short tap — show channel picker
+      if (!pressTriggered && channels.length > 1) showChannelPicker();
+    }
+  });
   avatar.addEventListener("pointerleave", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+
+  // fallback for devices where pointerup doesn't fire reliably
+  avatar.addEventListener("click", () => {
+    if (!pressTriggered && channels.length > 1) showChannelPicker();
+  });
 })();
 
 /* ============================================================
@@ -1614,6 +1711,14 @@ document.querySelector(".hdr-notice")?.addEventListener("click", () => {
 function showNoticePanel() {
   document.querySelector(".notice-panel")?.remove();
 
+  const sections = currentChannelConfig.notice || [];
+  const sectionsHtml = sections.map(s => `
+    <div class="notice-section">
+      <h4>${s.title}</h4>
+      <ul>${s.items.map(i => `<li>${i}</li>`).join("")}</ul>
+    </div>
+  `).join("");
+
   const panel = document.createElement("div");
   panel.className = "notice-panel";
 
@@ -1624,25 +1729,7 @@ function showNoticePanel() {
         <button class="notice-panel-close">✕</button>
       </div>
       <div class="notice-panel-body">
-        <div class="notice-section">
-          <h4>이용 안내</h4>
-          <ul>
-            <li>꾹 눌러서 리액션/답장/신고 가능</li>
-            <li>본인이 쓴 채팅 삭제 가능, 답장 달렸을 시 삭제된 채팅으로 표시</li>
-            <li>신고 철회 가능</li>
-            <li>비밀 메시지는 찍이한테만 보이고 보낸 사람한테도 안보임</li>
-            <li>우측 상단 메뉴에 설정/갤러리/링크</li>
-            <li>사진/링크 타고 채팅으로 이동 가능</li>
-          </ul>
-        </div>
-        <div class="notice-section">
-          <h4>규칙</h4>
-          <ul>
-            <li>호모:순덕 비율 알잘딱깔센</li>
-            <li>빡치는 채팅 있을경우 플 늘리지 말고 신고하면 다지워줌</li>
-            <li>차단당한거 억울하면 탄원서 제출가능 (기회1번)</li>
-          </ul>
-        </div>
+        ${sectionsHtml || '<div style="color:var(--meta);text-align:center;padding:20px">공지사항이 없습니다</div>'}
       </div>
     </div>
   `;

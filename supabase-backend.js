@@ -10,6 +10,11 @@ import { supabaseConfig } from "./config.js";
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
 let currentUser = null;
+let channelId = "main"; // default channel
+
+/* ---- Channel ---- */
+export function setChannel(id) { channelId = id; }
+export function getChannel() { return channelId; }
 
 /* ---- Auth ---- */
 export async function initAuth() {
@@ -33,10 +38,10 @@ export function subscribe(cb) {
   // initial fetch
   fetchMessages().then(cb);
 
-  // realtime subscription
+  // realtime subscription — filter by channel
   const channel = supabase
-    .channel("messages")
-    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+    .channel(`messages-${channelId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `channel_id=eq.${channelId}` }, () => {
       fetchMessages().then(cb);
     })
     .subscribe();
@@ -48,6 +53,7 @@ async function fetchMessages() {
   const { data } = await supabase
     .from("messages")
     .select("*")
+    .eq("channel_id", channelId)
     .order("created_at", { ascending: true })
     .limit(2000);
   return (data || []).map(formatMessage);
@@ -57,6 +63,7 @@ export async function loadMoreMessages(beforeDate) {
   const { data } = await supabase
     .from("messages")
     .select("*")
+    .eq("channel_id", channelId)
     .lt("created_at", beforeDate)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -89,11 +96,10 @@ function formatMessage(row) {
 
 export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH }) {
   const authUid = currentUser.id;
-  const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, created_at: new Date().toISOString() };
+  const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, channel_id: channelId, created_at: new Date().toISOString() };
   if (replyTo) row.reply_to = replyTo;
   if (report) { row.report = true; row.reported_msg_id = reportedMsgId || null; }
   if (image) {
-    // upload image to storage and store URL
     const imageUrl = await uploadImage(image);
     row.image = imageUrl;
   }
@@ -156,8 +162,8 @@ export function subscribeBlocked(cb) {
   fetchBlocked().then((list) => { _blockedList = list; cb(list); });
 
   const channel = supabase
-    .channel("blocked")
-    .on("postgres_changes", { event: "*", schema: "public", table: "blocked" }, () => {
+    .channel(`blocked-${channelId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "blocked", filter: `channel_id=eq.${channelId}` }, () => {
       fetchBlocked().then((list) => { _blockedList = list; _blockedListeners.forEach((c) => c(list)); });
     })
     .subscribe();
@@ -166,22 +172,22 @@ export function subscribeBlocked(cb) {
 }
 
 async function fetchBlocked() {
-  const { data } = await supabase.from("blocked").select("*");
+  const { data } = await supabase.from("blocked").select("*").eq("channel_id", channelId);
   return (data || []).map((b) => ({ uid: b.uid, reason: b.reason || "" }));
 }
 
 export async function blockUser(uid, reason) {
-  await supabase.from("blocked").insert({ uid, reason: reason || "" });
+  await supabase.from("blocked").insert({ uid, reason: reason || "", channel_id: channelId });
 }
 
 export async function unblockUser(uid) {
-  await supabase.from("blocked").delete().eq("uid", uid);
+  await supabase.from("blocked").delete().eq("uid", uid).eq("channel_id", channelId);
 }
 
 /* ---- DM ---- */
-export async function sendDm({ uid, nick, text, image }) {
+export async function sendDm({ uid, nick, text, image, imageW, imageH }) {
   const authUid = currentUser.id;
-  const row = { uid, auth_uid: authUid, nick, text, created_at: new Date().toISOString() };
+  const row = { uid, auth_uid: authUid, nick, text, channel_id: channelId, created_at: new Date().toISOString() };
   if (image) {
     const imageUrl = await uploadImage(image);
     row.image = imageUrl;
@@ -197,8 +203,8 @@ export function subscribeDm(cb) {
   fetchDm().then(cb);
 
   const channel = supabase
-    .channel("dm")
-    .on("postgres_changes", { event: "*", schema: "public", table: "dm" }, () => {
+    .channel(`dm-${channelId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "dm", filter: `channel_id=eq.${channelId}` }, () => {
       fetchDm().then(cb);
     })
     .subscribe();
@@ -207,7 +213,7 @@ export function subscribeDm(cb) {
 }
 
 async function fetchDm() {
-  const { data } = await supabase.from("dm").select("*").order("created_at", { ascending: true }).limit(500);
+  const { data } = await supabase.from("dm").select("*").eq("channel_id", channelId).order("created_at", { ascending: true }).limit(500);
   return (data || []).map((row) => ({
     id: row.id,
     uid: row.uid,
@@ -221,9 +227,8 @@ async function fetchDm() {
 /* ---- Gallery (uses Supabase Storage for files) ---- */
 
 async function uploadImage(blob) {
-  // blob is already a Blob or File — upload directly
   const ext = blob.type === "image/gif" ? "gif" : "jpg";
-  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const fileName = `${channelId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const filePath = `photos/${fileName}`;
 
   const { error } = await supabase.storage.from("media").upload(filePath, blob, {
@@ -232,15 +237,13 @@ async function uploadImage(blob) {
   });
   if (error) throw error;
 
-  // get public URL
   const { data } = supabase.storage.from("media").getPublicUrl(filePath);
   return data.publicUrl;
 }
 
 export async function saveToGallery(imageBlob) {
-  // upload to storage, save URL in gallery table
   const imageUrl = await uploadImage(imageBlob);
-  const { data, error } = await supabase.from("gallery").insert({ image: imageUrl }).select("id").single();
+  const { data, error } = await supabase.from("gallery").insert({ image: imageUrl, channel_id: channelId }).select("id").single();
   if (error) throw error;
   return data.id;
 }
@@ -249,8 +252,8 @@ export function subscribeGallery(cb) {
   fetchGallery().then(cb);
 
   const channel = supabase
-    .channel("gallery")
-    .on("postgres_changes", { event: "*", schema: "public", table: "gallery" }, () => {
+    .channel(`gallery-${channelId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "gallery", filter: `channel_id=eq.${channelId}` }, () => {
       fetchGallery().then(cb);
     })
     .subscribe();
@@ -259,7 +262,7 @@ export function subscribeGallery(cb) {
 }
 
 async function fetchGallery() {
-  const { data } = await supabase.from("gallery").select("*").order("created_at", { ascending: false }).limit(100);
+  const { data } = await supabase.from("gallery").select("*").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(100);
   return (data || []).map((row) => ({
     id: row.id,
     image: row.image,
@@ -268,7 +271,6 @@ async function fetchGallery() {
 }
 
 export async function removeFromGallery(id) {
-  // get the image URL to delete from storage too
   const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
   if (data && data.image) {
     const path = data.image.split("/media/")[1];
@@ -279,16 +281,17 @@ export async function removeFromGallery(id) {
 
 /* ---- Notice ---- */
 export async function setNotice(text) {
-  // upsert into config table
-  await supabase.from("config").upsert({ id: "notice", text, updated_at: new Date().toISOString() });
+  const noticeId = `notice_${channelId}`;
+  await supabase.from("config").upsert({ id: noticeId, text, channel_id: channelId, updated_at: new Date().toISOString() });
 }
 
 export function subscribeNotice(cb) {
   fetchNotice().then(cb);
 
+  const noticeId = `notice_${channelId}`;
   const channel = supabase
-    .channel("config")
-    .on("postgres_changes", { event: "*", schema: "public", table: "config", filter: "id=eq.notice" }, () => {
+    .channel(`config-${channelId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "config", filter: `id=eq.${noticeId}` }, () => {
       fetchNotice().then(cb);
     })
     .subscribe();
@@ -297,7 +300,8 @@ export function subscribeNotice(cb) {
 }
 
 async function fetchNotice() {
-  const { data } = await supabase.from("config").select("text").eq("id", "notice").single();
+  const noticeId = `notice_${channelId}`;
+  const { data } = await supabase.from("config").select("text").eq("id", noticeId).single();
   return data?.text || "";
 }
 
@@ -306,6 +310,7 @@ export async function searchMessages(query) {
   const { data } = await supabase
     .from("messages")
     .select("*")
+    .eq("channel_id", channelId)
     .textSearch("text", query, { type: "websearch" })
     .order("created_at", { ascending: false })
     .limit(50);

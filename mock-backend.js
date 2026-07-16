@@ -10,16 +10,22 @@
 const KEY = "mock_messages";
 const listeners = new Set();
 
+let channelId = "main";
+export function setChannel(id) { channelId = id; }
+export function getChannel() { return channelId; }
+
+function getKey(base) { return `${base}_${channelId}`; }
+
 function load() {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]").map((m) => ({
+    return JSON.parse(localStorage.getItem(getKey("mock_messages")) || "[]").map((m) => ({
       ...m, createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
     }));
   } catch { return []; }
 }
 function save(list) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(
+    localStorage.setItem(getKey("mock_messages"), JSON.stringify(
       list.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
     ));
   } catch { /* ignore quota errors in mock mode */ }
@@ -151,7 +157,7 @@ const BLOCK_KEY = "mock_blocked";
 
 function loadBlocked() {
   try {
-    const raw = JSON.parse(localStorage.getItem(BLOCK_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(getKey("mock_blocked")) || "[]");
     // support both old format (string[]) and new format ({uid, reason}[])
     return raw.map((b) => typeof b === "string" ? { uid: b, reason: "" } : b);
   } catch { return []; }
@@ -170,13 +176,13 @@ export async function blockUser(uid, reason) {
   const list = loadBlocked();
   if (!list.find((b) => b.uid === uid)) {
     list.push({ uid, reason: reason || "" });
-    localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
+    localStorage.setItem(getKey("mock_blocked"), JSON.stringify(list));
   }
 }
 
 export async function unblockUser(uid) {
   const list = loadBlocked().filter((b) => b.uid !== uid);
-  localStorage.setItem(BLOCK_KEY, JSON.stringify(list));
+  localStorage.setItem(getKey("mock_blocked"), JSON.stringify(list));
 }
 
 /* ---- DM (separate storage) ---- */
@@ -185,13 +191,13 @@ const dmListeners = new Set();
 
 function loadDm() {
   try {
-    return JSON.parse(localStorage.getItem(DM_KEY) || "[]").map((m) => ({
+    return JSON.parse(localStorage.getItem(getKey("mock_dm")) || "[]").map((m) => ({
       ...m, createdAt: m.createdAt ? new Date(m.createdAt) : new Date(),
     }));
   } catch { return []; }
 }
 function saveDm(list) {
-  localStorage.setItem(DM_KEY, JSON.stringify(
+  localStorage.setItem(getKey("mock_dm"), JSON.stringify(
     list.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
   ));
 }
@@ -225,13 +231,13 @@ const NOTICE_KEY = "mock_notice";
 const noticeListeners = new Set();
 
 export async function setNotice(text) {
-  localStorage.setItem(NOTICE_KEY, text);
+  localStorage.setItem(getKey("mock_notice"), text);
   noticeListeners.forEach((cb) => cb(text));
 }
 
 export function subscribeNotice(cb) {
   noticeListeners.add(cb);
-  cb(localStorage.getItem(NOTICE_KEY) || "");
+  cb(localStorage.getItem(getKey("mock_notice")) || "");
   window.addEventListener("storage", (e) => { if (e.key === NOTICE_KEY) cb(e.newValue || ""); });
   return () => noticeListeners.delete(cb);
 }
@@ -239,7 +245,7 @@ const galleryListeners = new Set();
 
 function loadGallery() {
   try {
-    return JSON.parse(localStorage.getItem(GALLERY_KEY) || "[]").map((g) => ({
+    return JSON.parse(localStorage.getItem(getKey("mock_gallery")) || "[]").map((g) => ({
       ...g, createdAt: g.createdAt ? new Date(g.createdAt) : new Date(),
     }));
   } catch { return []; }
@@ -248,7 +254,7 @@ function saveGalleryList(list) {
   // skip persisting to localStorage — images are too large for the 5MB quota
   // only save metadata (id + date), not the image data
   try {
-    localStorage.setItem(GALLERY_KEY, JSON.stringify(
+    localStorage.setItem(getKey("mock_gallery"), JSON.stringify(
       list.map((g) => ({ id: g.id, image: "[mock]", createdAt: g.createdAt.toISOString() }))
     ));
   } catch { /* ignore quota errors */ }
