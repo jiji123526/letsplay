@@ -1484,8 +1484,14 @@ function showAdminPlusMenu(e) {
 }
 
 function showNoticeInput() {
-  const title = prompt("공지 제목:");
-  if (!title || !title.trim()) return;
+  const title = prompt("공지 제목 (비우면 공지 삭제):");
+  if (title === null) return; // cancelled
+  if (!title.trim()) {
+    // clear notice
+    setNoticeBanner("");
+    banner("공지가 삭제되었습니다");
+    return;
+  }
   const body = prompt("공지 내용 (선택사항, 빈칸이면 생략):");
   if (body === null) return; // user cancelled
   const notice = body.trim()
