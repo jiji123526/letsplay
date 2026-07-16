@@ -137,6 +137,7 @@ export default async function handler(req, res) {
         const liveChannelId = `${channelId || "main"}_live`;
         await supabase.from("messages").delete().eq("channel_id", liveChannelId);
         await supabase.from("gallery").delete().eq("channel_id", liveChannelId);
+        await supabase.from("dm").delete().eq("channel_id", liveChannelId);
         return res.json({ ok: true });
       }
 
