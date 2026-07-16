@@ -860,7 +860,7 @@ configureSearch({
 initAuth().then((uid) => {
   myUid = uid;
   myNick = anonNameFor(uid);
-  syncAdminColor();
+  if (isAdmin) syncAdminColor();
   showEntryGate();          // pick a role (anon by default), then enter
 }).catch((e) => {
   console.error("auth failed", e);
@@ -1790,6 +1790,7 @@ function refilterMessages() {
             checkIfBlocked();
             refilterMessages();
             render();
+            syncAdminColor();
             banner("관리자 모드 활성화");
           } else {
             banner("비밀번호가 틀렸습니다");
@@ -1959,6 +1960,7 @@ function showSettingsPanel() {
 
   // custom color picker
   const colorInput = panel.querySelector(".settings-color-input");
+  let colorSaveTimer = null;
   colorInput.addEventListener("input", (e) => {
     const color = e.target.value;
     panel.querySelectorAll(".settings-color-btn").forEach(b => { b.classList.remove("active"); b.style.outlineColor = "transparent"; });
@@ -1967,7 +1969,10 @@ function showSettingsPanel() {
     customBtn.style.outlineColor = darkenColor(color, 50);
     localStorage.setItem(`bubbleColor_${urlChannel}`, color);
     document.documentElement.style.setProperty("--bubble-sent", color);
-    if (isAdmin && !IS_MOCK) adminSetColor(urlChannel, color);
+    if (isAdmin && !IS_MOCK) {
+      clearTimeout(colorSaveTimer);
+      colorSaveTimer = setTimeout(() => adminSetColor(urlChannel, color), 500);
+    }
   });
 
   // blocked users (admin only)
