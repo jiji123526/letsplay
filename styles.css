@@ -116,7 +116,7 @@ body {
   touch-action: manipulation;
   -webkit-touch-callout: none;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 1px 8px;
 }
 .hdr-name svg { color: var(--meta); opacity: .7; }
 
