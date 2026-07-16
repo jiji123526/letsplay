@@ -748,11 +748,20 @@ function showChannelPicker() {
         const targetChannel = channels.find(c => c.id === ch);
         // check if channel requires a passcode (admins skip)
         if (targetChannel?.passcode && !isAdmin) {
-          const code = prompt(`${targetChannel.name}: 비밀번호를 입력하세요`);
-          if (!code || code.trim() !== targetChannel.passcode) {
-            banner("비밀번호가 틀렸습니다");
-            return;
-          }
+          showPasscodeDialog(targetChannel, () => {
+            const url = new URL(window.location);
+            if (ch === "main") {
+              url.pathname = "/";
+              url.searchParams.delete("ch");
+            } else {
+              url.pathname = `/ch/${ch}`;
+              url.searchParams.delete("ch");
+            }
+            sessionStorage.setItem("ch_switching", "true");
+            window.location.href = url.toString();
+          });
+          overlay.remove();
+          return;
         }
         const url = new URL(window.location);
         if (ch === "main") {
@@ -771,6 +780,50 @@ function showChannelPicker() {
   });
 
   document.body.appendChild(overlay);
+}
+
+function showPasscodeDialog(targetChannel, onSuccess) {
+  document.querySelector(".passcode-dialog")?.remove();
+
+  const dialog = document.createElement("div");
+  dialog.className = "passcode-dialog";
+  dialog.innerHTML = `
+    <div class="passcode-dialog-content">
+      <div class="passcode-dialog-title">${targetChannel.name}</div>
+      <div class="passcode-dialog-subtitle">비밀번호를 입력하세요</div>
+      <input class="passcode-dialog-input" type="password" autocomplete="off" inputmode="numeric" />
+      <div class="passcode-dialog-error" style="display:none">비밀번호가 틀렸습니다</div>
+      <div class="passcode-dialog-buttons">
+        <button class="passcode-dialog-cancel">취소</button>
+        <button class="passcode-dialog-confirm">확인</button>
+      </div>
+    </div>
+  `;
+
+  const input = dialog.querySelector(".passcode-dialog-input");
+  const errorEl = dialog.querySelector(".passcode-dialog-error");
+
+  function submit() {
+    const code = input.value.trim();
+    if (code === targetChannel.passcode) {
+      dialog.remove();
+      onSuccess();
+    } else {
+      errorEl.style.display = "block";
+      input.value = "";
+      input.focus();
+    }
+  }
+
+  dialog.querySelector(".passcode-dialog-confirm").addEventListener("click", submit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+  dialog.querySelector(".passcode-dialog-cancel").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.remove(); });
+
+  document.body.appendChild(dialog);
+  setTimeout(() => input.focus(), 100);
 }
 
 /* ---- Initialize search module ---- */
