@@ -1,0 +1,75 @@
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m137[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.31.255.194:[1m3000[22m/[39m
+[2m4:04:29 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:09:02 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:09:20 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles.css?direct[22m
+[2m4:10:32 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:10:40 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:11:25 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:12:10 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:12:30 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:12:33 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:12:41 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:24:23 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:26:28 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles.css?direct[22m
+[2m4:27:42 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:27:46 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:27:50 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:28:07 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:30:20 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:31:05 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:31:17 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:40:37 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:40:45 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:40:53 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:40:53 AM[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.
+[2m4:40:53 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to parse source for import analysis because the content contains invalid JS syntax. If you are using JSX, make sure to name the file with the .jsx or .tsx extension.[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/home/jjiwoo/letsplay/app.js[39m:1642:55
+[33m  1641|  }
+  1642|    document.querySelector(".photo-preview")?.remove();
+  1643|  }
+     |  ^
+  1644|  
+  1645|  function compressImage(file, maxWidth, quality) {[39m
+      at TransformPluginContext._formatError (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at TransformPluginContext.transform (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64259:14)
+      at async PluginContainer.transform (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+      at async viteTransformMiddleware (file:///home/jjiwoo/letsplay/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:62106:24)
+[2m4:41:04 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:41:44 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:41:51 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:41:59 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m4:42:04 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:46:51 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:46:56 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:49:26 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mconfig.js[22m
+[2m4:54:44 AM[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/styles.css?direct[22m
+[2m4:54:51 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:59:31 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:59:46 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:59:53 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m4:59:59 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:02:17 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:02:28 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:02:40 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:04:16 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:05:48 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:05:58 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:06:22 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:06:44 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:11:43 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mphoto.js[22m
+[2m5:11:48 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:12:06 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:12:11 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:12:23 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:12:32 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msupabase-backend.js[22m
+[2m5:12:40 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msupabase-backend.js[22m
+[2m5:12:46 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m
+[2m5:13:00 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mmock-backend.js[22m
+[2m5:17:15 AM[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mapp.js[22m

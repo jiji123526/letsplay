@@ -205,9 +205,11 @@ function render() {
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
     hasScrolledInitial = true;
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    // reveal container now that we're at the bottom (prevents FOUC)
-    messagesEl.style.visibility = "visible";
+    // defer to next frame so browser finishes layout before we scroll
+    requestAnimationFrame(() => {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      messagesEl.style.visibility = "visible";
+    });
   } else if (nearBottom && !initialLoad) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
