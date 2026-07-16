@@ -2240,12 +2240,18 @@ function startChat() {
   started = true;
   checkIfBlocked();
   // force scroll to bottom for first 5 seconds while data loads
-  setTimeout(() => { initialLoad = false; messagesEl.scrollTop = 999999; }, 5000);
+  setTimeout(() => { initialLoad = false; if (!userInteracted) messagesEl.scrollTop = 999999; }, 5000);
   // multiple early scroll attempts to catch the bottom ASAP
-  setTimeout(() => { messagesEl.scrollTop = 999999; }, 100);
-  setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
-  setTimeout(() => { messagesEl.scrollTop = 999999; }, 1500);
-  setTimeout(() => { messagesEl.scrollTop = 999999; }, 3000);
+  let userInteracted = false;
+  const stopAutoScroll = () => { userInteracted = true; };
+  messagesEl.addEventListener("touchstart", stopAutoScroll, { once: true });
+  messagesEl.addEventListener("wheel", stopAutoScroll, { once: true });
+  input.addEventListener("focus", stopAutoScroll, { once: true });
+
+  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 100);
+  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 500);
+  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 1500);
+  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 3000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
