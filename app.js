@@ -1631,7 +1631,7 @@ function refilterMessages() {
 
 (function() {
   const avatar = document.querySelector(".hdr-avatar");
-  const header = document.querySelector(".hdr-name");
+  const header = document.querySelector(".chat-header");
   if (!avatar || !header) return;
 
   // avatar tap → channel picker
@@ -1642,6 +1642,7 @@ function refilterMessages() {
   // header name long press → admin toggle
   let pressTimer = null;
   header.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
     pressTimer = setTimeout(async () => {
       pressTimer = null;
       if (isAdmin) {
