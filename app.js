@@ -1630,16 +1630,20 @@ function refilterMessages() {
 }
 
 (function() {
-  const avatar = document.querySelector(".hdr-contact");
-  if (!avatar) return;
-  let pressTimer = null;
-  let pressTriggered = false;
+  const avatar = document.querySelector(".hdr-avatar");
+  const header = document.querySelector(".hdr-name");
+  if (!avatar || !header) return;
 
-  avatar.addEventListener("pointerdown", (e) => {
-    pressTriggered = false;
+  // avatar tap → channel picker
+  avatar.addEventListener("click", () => {
+    if (channels.length > 1) showChannelPicker();
+  });
+
+  // header name long press → admin toggle
+  let pressTimer = null;
+  header.addEventListener("pointerdown", (e) => {
     pressTimer = setTimeout(async () => {
       pressTimer = null;
-      pressTriggered = true;
       if (isAdmin) {
         isAdmin = false;
         localStorage.setItem("isAdmin", "false");
@@ -1669,21 +1673,8 @@ function refilterMessages() {
       }
     }, 800);
   });
-
-  avatar.addEventListener("pointerup", () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-      // short tap — show channel picker
-      if (!pressTriggered && channels.length > 1) showChannelPicker();
-    }
-  });
-  avatar.addEventListener("pointerleave", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
-
-  // fallback for devices where pointerup doesn't fire reliably
-  avatar.addEventListener("click", () => {
-    if (!pressTriggered && channels.length > 1) showChannelPicker();
-  });
+  header.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+  header.addEventListener("pointerleave", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
 })();
 
 /* ============================================================
