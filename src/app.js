@@ -16,7 +16,7 @@ import { compressImage, getImageDimensions, showFullImage as showFullImageBase }
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
-import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, removeLiveBanner } from "./modules/live.js";
+import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner } from "./modules/live.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
 
@@ -2161,9 +2161,12 @@ function showAdminPanel() {
       localStorage.setItem(`liveActive_${urlChannel}`, "false");
       localStorage.removeItem(`liveSeen_${urlChannel}`);
       localStorage.removeItem(`liveTitle_${urlChannel}`);
+      localStorage.removeItem(`mock_notice_${urlChannel}_live`);
       // if admin is in live mode, switch back
-      if (inLiveMode) exitLiveMode();
-      banner("라이브가 종료되었습니다");
+      if (inLiveMode) {
+        localStorage.setItem(`liveEnded_${urlChannel}`, "true");
+        exitLiveMode();
+      }
     } else {
       // start live mode
       const liveTitle = prompt("라이브 제목:");
@@ -2442,6 +2445,12 @@ function startChat() {
   toggleSend();
   renderNoticeBanner();
 
+  // show "live ended" popup if user was kicked out by admin ending live
+  if (localStorage.getItem(`liveEnded_${urlChannel}`)) {
+    localStorage.removeItem(`liveEnded_${urlChannel}`);
+    showLiveEndedPopup();
+  }
+
   // subscribe to live mode state
   if (!IS_MOCK) {
     getLiveStatus(urlChannel).then(active => {
@@ -2451,7 +2460,10 @@ function startChat() {
         if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
         else showLivePopup();
       }
-      if (!active && inLiveMode) exitLiveMode();
+      if (!active && inLiveMode) {
+        localStorage.setItem(`liveEnded_${urlChannel}`, "true");
+        exitLiveMode();
+      }
     });
   } else {
     // mock mode: check localStorage

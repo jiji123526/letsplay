@@ -136,7 +136,7 @@ body {
 .time-sep {
   align-self: center;
   color: var(--meta);
-  font-size: 13px;
+  font-size: calc(var(--bubble-font-size, 17px) - 4px);
   font-weight: 400;
   margin: 16px 0 8px;
   letter-spacing: .1px;
@@ -237,15 +237,6 @@ body {
 .bubble.sent.stacked-top { border-top-right-radius: 20px; }
 .bubble.recv.stacked-top { border-top-left-radius: 20px; }
 
-/* ---------- receipts / meta under a bubble ---------- */
-.receipt {
-  font-size: 9px;
-  color: var(--meta);
-  margin: 2px 4px 2px;
-  font-weight: 400;
-}
-.receipt b { font-weight: 400; color: var(--meta); }
-.row.sent + .receipt-wrap { align-self: flex-end; }
 
 .delivered { font-size: 9px; color: var(--meta); }
 

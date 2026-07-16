@@ -138,6 +138,7 @@ export default async function handler(req, res) {
         await supabase.from("messages").delete().eq("channel_id", liveChannelId);
         await supabase.from("gallery").delete().eq("channel_id", liveChannelId);
         await supabase.from("dm").delete().eq("channel_id", liveChannelId);
+        await supabase.from("config").delete().eq("id", `notice_${liveChannelId}`);
         return res.json({ ok: true });
       }
 
