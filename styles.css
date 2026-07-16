@@ -799,6 +799,7 @@ emoji-picker {
   background: #ffeaea;
   color: #c00;
   font-size: var(--bubble-font-size, 17px);
+  cursor: pointer;
 }
 .bubble.tail.report-bubble::before {
   background: #ffeaea;
@@ -907,15 +908,26 @@ emoji-picker {
 }
 
 /* ---------- scroll highlight flash ---------- */
-.highlight-flash .bubble {
-  animation: flashHighlight 2s ease;
+.highlight-flash .bubble.sent {
+  animation: flashHighlightSent 2s ease;
 }
-.highlight-flash .bubble::before {
-  animation: flashHighlight 2s ease;
+.highlight-flash .bubble.recv {
+  animation: flashHighlightRecv 2s ease;
 }
-@keyframes flashHighlight {
-  0%, 20% { filter: brightness(1.5) drop-shadow(0 0 4px #ff6b6b); }
-  100% { filter: none; }
+@keyframes flashHighlightSent {
+  0%, 20% { box-shadow: 0 0 0 3px rgba(59, 141, 240, 0.6); }
+  100% { box-shadow: none; }
+}
+@keyframes flashHighlightRecv {
+  0%, 20% { box-shadow: 0 0 0 3px rgba(150, 150, 160, 0.5); }
+  100% { box-shadow: none; }
+}
+[data-theme="dark"] .highlight-flash .bubble.recv {
+  animation: flashHighlightRecvDark 2s ease;
+}
+@keyframes flashHighlightRecvDark {
+  0%, 20% { box-shadow: 0 0 0 3px rgba(100, 100, 110, 0.6); }
+  100% { box-shadow: none; }
 }
 
 

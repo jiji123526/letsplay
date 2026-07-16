@@ -18,9 +18,11 @@ function load() {
   } catch { return []; }
 }
 function save(list) {
-  localStorage.setItem(KEY, JSON.stringify(
-    list.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
-  ));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(
+      list.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))
+    ));
+  } catch { /* ignore quota errors in mock mode */ }
 }
 function emit() {
   const list = load();
@@ -59,7 +61,7 @@ export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, 
   const list = load();
   const msg = { id: id(), uid, nick, text, is_admin: !!is_admin, replyTo: replyTo || null, createdAt: new Date() };
   if (report) { msg.report = true; msg.reportedMsgId = reportedMsgId || null; }
-  if (image) { msg.image = image; }
+  if (image) { msg.image = image instanceof Blob ? URL.createObjectURL(image) : image; }
   if (dm) { msg.dm = true; }
   if (galleryId) { msg.galleryId = galleryId; }
   list.push(msg);
@@ -89,7 +91,7 @@ export async function removeMessage(mid) {
 export async function softDeleteMessage(mid) {
   const list = load();
   const msg = list.find((m) => m.id === mid);
-  if (msg) { msg.deleted = true; msg.text = ""; }
+  if (msg) { msg.deleted = true; msg.text = ""; msg.image = null; msg.galleryId = null; }
   save(list);
   emit();
 }
@@ -195,7 +197,7 @@ function saveDm(list) {
 export async function sendDm({ uid, nick, text, image }) {
   const list = loadDm();
   const msg = { id: id(), uid, nick, text, createdAt: new Date() };
-  if (image) msg.image = image;
+  if (image) msg.image = image instanceof Blob ? URL.createObjectURL(image) : image;
   list.push(msg);
   saveDm(list);
   dmListeners.forEach((cb) => cb(loadDm()));
@@ -241,17 +243,26 @@ function loadGallery() {
   } catch { return []; }
 }
 function saveGalleryList(list) {
-  localStorage.setItem(GALLERY_KEY, JSON.stringify(
-    list.map((g) => ({ ...g, createdAt: g.createdAt.toISOString() }))
-  ));
+  // skip persisting to localStorage — images are too large for the 5MB quota
+  // only save metadata (id + date), not the image data
+  try {
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(
+      list.map((g) => ({ id: g.id, image: "[mock]", createdAt: g.createdAt.toISOString() }))
+    ));
+  } catch { /* ignore quota errors */ }
 }
+
+let memoryGallery = [];
 
 export async function saveToGallery(image) {
   const list = loadGallery();
   const newId = id();
-  list.unshift({ id: newId, image, createdAt: new Date() });
+  const imageUrl = image instanceof Blob ? URL.createObjectURL(image) : image;
+  const item = { id: newId, image: imageUrl, createdAt: new Date() };
+  list.unshift(item);
+  memoryGallery = list;
   saveGalleryList(list);
-  galleryListeners.forEach((cb) => cb(loadGallery()));
+  galleryListeners.forEach((cb) => cb(list));
   return newId;
 }
 

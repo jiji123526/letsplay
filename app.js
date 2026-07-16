@@ -201,6 +201,10 @@ function render() {
   if (!hasScrolledInitial) {
     hasScrolledInitial = true;
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    // reveal container now that we're at the bottom (prevents FOUC)
+    if (messagesEl.style.visibility === "hidden") {
+      messagesEl.style.visibility = "visible";
+    }
   } else if (nearBottom && !initialLoad) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -889,22 +893,22 @@ function showContextMenu(e, msg, isMe, bubbleEl) {
 
 /* Admin-aware action wrappers */
 async function doDeleteMessage(id) {
-  if (isAdmin) await adminDeleteMessage(id);
+  if (isAdmin && !IS_MOCK) await adminDeleteMessage(id);
   else await removeMessage(id);
 }
 
 async function doDeleteGallery(id) {
-  if (isAdmin) await adminDeleteGallery(id);
+  if (isAdmin && !IS_MOCK) await adminDeleteGallery(id);
   else await removeFromGallery(id);
 }
 
 async function doBlock(uid, reason) {
-  if (isAdmin) await adminBlock(uid, reason);
+  if (isAdmin && !IS_MOCK) await adminBlock(uid, reason);
   else await blockUser(uid, reason);
 }
 
 async function doUnblock(uid) {
-  if (isAdmin) await adminUnblock(uid);
+  if (isAdmin && !IS_MOCK) await adminUnblock(uid);
   else {
     const { unblockUser: ub } = await import("./backend.js");
     await ub(uid);
@@ -912,17 +916,17 @@ async function doUnblock(uid) {
 }
 
 async function doEditMessage(id, newText) {
-  if (isAdmin) await adminUpdateMessage(id, { text: newText, edited: true });
+  if (isAdmin && !IS_MOCK) await adminUpdateMessage(id, { text: newText, edited: true });
   else await editMessage(id, newText);
 }
 
 async function doDeleteDm(id) {
-  if (isAdmin) await adminDeleteDm(id);
+  if (isAdmin && !IS_MOCK) await adminDeleteDm(id);
   else await removeDm(id);
 }
 
 async function doSetNotice(text) {
-  if (isAdmin) await adminSetNotice(text);
+  if (isAdmin && !IS_MOCK) await adminSetNotice(text);
   else await setNotice(text);
 }
 
@@ -938,7 +942,7 @@ async function deleteMessageWithReplies(msgId) {
       idsToDelete.push(m.id);
     }
   });
-  if (isAdmin) {
+  if (isAdmin && !IS_MOCK) {
     await adminDeleteMessages(idsToDelete);
   } else {
     for (const id of idsToDelete) await removeMessage(id);
@@ -1299,7 +1303,7 @@ function showFullImage(src, meta) {
         overlay.remove();
         // close gallery if open
         document.querySelector(".gallery-panel")?.remove();
-        scrollToMessage(meta.msgId);
+        scrollToMessageSilent(meta.msgId);
       });
     }
   }
@@ -1445,12 +1449,27 @@ function scrollToMessage(msgId) {
   const el = document.getElementById(`msg-${msgId}`);
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // highlight the target message briefly
+    el.classList.add("highlight-flash");
+    setTimeout(() => el.classList.remove("highlight-flash"), 2000);
+  } else {
+    // message might not be loaded yet — try loading older messages
+    banner("해당 메시지를 찾을 수 없습니다");
+  }
+}
+
+function scrollToMessageSilent(msgId) {
+  const el = document.getElementById(`msg-${msgId}`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  } else {
+    banner("해당 메시지를 찾을 수 없습니다");
   }
 }
 
 const photoBtn = $("#photoBtn");
 const photoInput = $("#photoInput");
-let pendingPhoto = null; // stores the compressed data URL until user sends
+let pendingPhoto = null; // stores the compressed Blob/File until user sends
 let dmMode = false; // DM to admin mode
 
 photoBtn.addEventListener("click", (e) => {
@@ -1577,37 +1596,35 @@ photoInput.addEventListener("change", async () => {
   if (!file) return;
   photoInput.value = "";
 
-  // compress and convert to base64 (skip for GIFs to preserve animation)
-  let dataUrl;
+  // check size limit (50MB max for Supabase Storage) — skip for GIFs
   const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
-  if (isGif) {
-    dataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
-      reader.readAsDataURL(file);
-    });
-  } else {
-    dataUrl = await compressImage(file, 800, 0.7);
-  }
-
-  // check size limit (50MB max for Supabase Storage)
-  if (dataUrl.length > 50 * 1024 * 1024) {
+  if (!isGif && file.size > 50 * 1024 * 1024) {
     banner("파일이 너무 큽니다 (최대 50MB)");
     return;
   }
 
-  pendingPhoto = dataUrl;
-  showPhotoPreview(dataUrl);
+  // compress to Blob (skip for GIFs to preserve animation)
+  let photoBlob;
+  if (isGif) {
+    photoBlob = file;
+  } else {
+    photoBlob = await compressImage(file, 2000, 0.85);
+  }
+
+  // use object URL for preview (zero-copy, no base64)
+  const previewUrl = URL.createObjectURL(photoBlob);
+  pendingPhoto = photoBlob;
+  showPhotoPreview(previewUrl);
   input.focus();
   toggleSend();
 });
 
-function showPhotoPreview(dataUrl) {
+function showPhotoPreview(previewUrl) {
   removePhotoPreview();
   const preview = document.createElement("div");
   preview.className = "photo-preview";
   preview.innerHTML = `
-    <img src="${dataUrl}" class="photo-preview-img" />
+    <img src="${previewUrl}" class="photo-preview-img" />
     <button class="photo-preview-close">✕</button>
   `;
   preview.querySelector(".photo-preview-close").addEventListener("click", () => {
@@ -1619,26 +1636,27 @@ function showPhotoPreview(dataUrl) {
 }
 
 function removePhotoPreview() {
-  document.querySelector(".photo-preview")?.remove();
+  const existing = document.querySelector(".photo-preview");
+  if (existing) {
+    const img = existing.querySelector("img");
+    if (img && img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+    existing.remove();
+  }
 }
 
 function compressImage(file, maxWidth, quality) {
   return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let w = img.width, h = img.height;
-        if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = e.target.result;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
     };
-    reader.readAsDataURL(file);
+    img.src = URL.createObjectURL(file);
   });
 }
 
@@ -1759,7 +1777,7 @@ function showLinks() {
       card.innerHTML = `<div class="links-card-url">${link.url}</div>`;
       card.addEventListener("click", () => {
         panel.remove();
-        scrollToMessage(link.msgId);
+        scrollToMessageSilent(link.msgId);
       });
       listEl.appendChild(card);
 
@@ -1817,7 +1835,7 @@ function refilterMessages() {
       } else {
         const pass = prompt("관리자 비밀번호:");
         if (pass) {
-          const valid = await verifyAdmin(pass);
+          const valid = IS_MOCK ? true : await verifyAdmin(pass);
           if (valid) {
             setAdminPasscode(pass);
             isAdmin = true;
@@ -2248,8 +2266,10 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
-  // force scroll to bottom for first 5 seconds while data loads
-  setTimeout(() => { initialLoad = false; }, 5000);
+  // hide messages until first scroll-to-bottom completes (prevents FOUC)
+  messagesEl.style.visibility = "hidden";
+  // force scroll to bottom for first 2 seconds while images load
+  setTimeout(() => { initialLoad = false; }, 2000);
   // scroll anchor: scroll to bottom once after first render
   hasScrolledInitial = false;
   userInteracted = false;
@@ -2276,8 +2296,8 @@ function startChat() {
     }
   });
   imgObserver.observe(messagesEl, { childList: true, subtree: true });
-  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   let galleryLoaded = false;
+  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   subscribe((list) => {
     allMessages = list;
     // filter out report messages for display

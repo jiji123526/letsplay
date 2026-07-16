@@ -100,7 +100,7 @@ export async function removeMessage(id) {
 }
 
 export async function softDeleteMessage(id) {
-  await supabase.from("messages").update({ deleted: true, text: "" }).eq("id", id);
+  await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
 }
 
 export async function editMessage(id, newText) {
@@ -210,10 +210,8 @@ async function fetchDm() {
 
 /* ---- Gallery (uses Supabase Storage for files) ---- */
 
-async function uploadImage(dataUrl) {
-  // convert base64 data URL to blob
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
+async function uploadImage(blob) {
+  // blob is already a Blob or File — upload directly
   const ext = blob.type === "image/gif" ? "gif" : "jpg";
   const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const filePath = `photos/${fileName}`;
@@ -229,9 +227,9 @@ async function uploadImage(dataUrl) {
   return data.publicUrl;
 }
 
-export async function saveToGallery(imageDataUrl) {
+export async function saveToGallery(imageBlob) {
   // upload to storage, save URL in gallery table
-  const imageUrl = await uploadImage(imageDataUrl);
+  const imageUrl = await uploadImage(imageBlob);
   const { data, error } = await supabase.from("gallery").insert({ image: imageUrl }).select("id").single();
   if (error) throw error;
   return data.id;
