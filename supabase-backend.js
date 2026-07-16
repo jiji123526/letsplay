@@ -13,7 +13,13 @@ let currentUser = null;
 
 /* ---- Auth ---- */
 export async function initAuth() {
-  // anonymous sign-in
+  // reuse existing session if available (avoids rate limits on refresh)
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    return currentUser.id;
+  }
+  // no existing session — anonymous sign-in
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) throw error;
   currentUser = data.user;
