@@ -179,7 +179,7 @@ async function performSearch(query) {
   if (searchResults.length > 0) {
     // sort by visual DOM position (top to bottom)
     searchResults.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-    searchIndex = searchResults.length; // start at bottom (newest visually)
+    searchIndex = searchResults.length - 1; // start at bottom (newest visually)
     highlightCurrent(true); // initial = don't scroll if already visible
   } else if (_banner) {
     _banner("검색 결과가 없습니다", "#666");
