@@ -2156,6 +2156,7 @@ function showAdminPanel() {
     panel.remove();
     if (liveActive) {
       // end live mode
+      if (!confirm("라이브를 종료하시겠습니까?")) return;
       if (!IS_MOCK) await adminEndLive(urlChannel);
       liveActive = false;
       localStorage.setItem(`liveActive_${urlChannel}`, "false");

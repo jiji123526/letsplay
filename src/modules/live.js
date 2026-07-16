@@ -51,6 +51,7 @@ export function showLiveExitBanner() {
   `;
   bannerEl.querySelector(".live-exit-btn").addEventListener("click", async () => {
     if (isAdmin) {
+      if (!confirm("라이브를 종료하시겠습니까?")) return;
       if (!IS_MOCK) await _ctx.adminEndLive(urlChannel);
       _ctx.setState({ liveActive: false });
       localStorage.setItem(`liveActive_${urlChannel}`, "false");
