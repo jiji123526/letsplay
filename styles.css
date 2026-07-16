@@ -1257,6 +1257,7 @@ emoji-picker {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   background: rgba(255,255,255,.95);
   border-radius: 14px;
   z-index: 10;
@@ -1274,11 +1275,33 @@ emoji-picker {
   width: 24px;
   height: 24px;
 }
-.notice-banner-text {
+.notice-banner-title {
   flex: 1;
   font-size: var(--bubble-font-size, 14px);
+  font-weight: 600;
   color: var(--gray-text);
   line-height: 1.4;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.notice-banner-body {
+  width: 100%;
+  font-size: calc(var(--bubble-font-size, 14px) - 1px);
+  color: var(--meta);
+  line-height: 1.5;
+  padding: 8px 0 0 36px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.notice-banner-expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--meta);
+  font-size: 16px;
+  padding: 0 4px;
+  flex-shrink: 0;
 }
 .notice-banner-close {
   background: none;
