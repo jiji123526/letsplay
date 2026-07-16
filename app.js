@@ -719,7 +719,7 @@ sessionStorage.removeItem("ch_switching");
 
 document.querySelector(".hdr-name").textContent = currentChannelConfig.name;
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
-if (currentChannelConfig.bubble) {
+if (currentChannelConfig.bubble && !localStorage.getItem("bubbleColor")) {
   document.documentElement.style.setProperty("--bubble-sent", currentChannelConfig.bubble);
 }
 
