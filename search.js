@@ -160,8 +160,10 @@ async function performSearch(query) {
   }
 
   if (searchResults.length > 0) {
-    searchIndex = searchResults.length - 1;
-    highlightCurrent();
+    // sort by visual DOM position (top to bottom)
+    searchResults.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    searchIndex = searchResults.length; // start at bottom (newest visually)
+    highlightCurrent(true); // initial = don't scroll if already visible
   } else if (_banner) {
     _banner("검색 결과가 없습니다", "#666");
   }
@@ -193,12 +195,12 @@ function navigateSearch(direction) {
   highlightCurrent();
 }
 
-function highlightCurrent() {
+function highlightCurrent(initial) {
   const row = searchResults[searchIndex];
   if (!row) return;
   const match = row.querySelector(".search-match");
   if (match) match.classList.add("search-active");
-  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.scrollIntoView({ behavior: initial ? "auto" : "smooth", block: "nearest" });
 
   const bar = document.querySelector(".search-bar");
   if (bar) {
