@@ -71,12 +71,16 @@ function toggleSearchBar() {
     }
   });
 
+  let blurFromEnter = false;
+
   searchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.isComposing) {
       e.preventDefault();
+      blurFromEnter = true;
       searchInput.blur(); // dismiss keyboard
       if (searchResults.length === 0) {
         performSearch(searchInput.value.trim());
+        if (searchResults.length > 0) navigateSearch(-1);
       } else {
         navigateSearch(-1);
       }
@@ -88,11 +92,13 @@ function toggleSearchBar() {
   nextBtn.addEventListener("click", () => navigateSearch(1));
   bar.querySelector(".search-close-btn").addEventListener("click", closeSearchBar);
 
-  // treat keyboard dismiss (blur) as submit
+  // treat keyboard dismiss (blur) as submit — skip if Enter caused it
   searchInput.addEventListener("blur", () => {
+    if (blurFromEnter) { blurFromEnter = false; return; }
     const query = searchInput.value.trim();
     if (query && searchResults.length === 0) {
       performSearch(query);
+      if (searchResults.length > 0) navigateSearch(-1);
     }
   });
 
@@ -106,6 +112,7 @@ function toggleSearchBar() {
         const query = searchInput.value.trim();
         if (query && searchResults.length === 0) {
           performSearch(query);
+          if (searchResults.length > 0) navigateSearch(-1);
         }
       }
       prevHeight = newHeight;
