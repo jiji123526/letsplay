@@ -95,6 +95,23 @@ function toggleSearchBar() {
       performSearch(query);
     }
   });
+
+  // iOS: detect keyboard dismiss via viewport resize
+  if (window.visualViewport) {
+    let prevHeight = window.visualViewport.height;
+    const onResize = () => {
+      const newHeight = window.visualViewport.height;
+      // keyboard closed = viewport got taller
+      if (newHeight > prevHeight + 50 && document.activeElement === searchInput) {
+        const query = searchInput.value.trim();
+        if (query && searchResults.length === 0) {
+          performSearch(query);
+        }
+      }
+      prevHeight = newHeight;
+    };
+    window.visualViewport.addEventListener("resize", onResize);
+  }
 }
 
 export function closeSearchBar() {
