@@ -2028,22 +2028,22 @@ function showAdminPanel() {
       <div class="admin-panel-body">
         <div class="admin-panel-section">
           <button class="admin-panel-item" data-action="notice">
-            <span class="admin-panel-icon">📢</span>
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
             <span class="admin-panel-label">전체 공지</span>
             <span class="admin-panel-arrow">›</span>
           </button>
           <button class="admin-panel-item" data-action="color">
-            <span class="admin-panel-icon">🎨</span>
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="14" r="2" fill="currentColor"/><circle cx="16" cy="14" r="2" fill="currentColor"/></svg></span>
             <span class="admin-panel-label">채널 기본 색상</span>
             <span class="admin-panel-arrow">›</span>
           </button>
           <button class="admin-panel-item" data-action="passcode">
-            <span class="admin-panel-icon">🔒</span>
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
             <span class="admin-panel-label">채널 비밀번호</span>
             <span class="admin-panel-arrow">›</span>
           </button>
           <button class="admin-panel-item" data-action="blocked">
-            <span class="admin-panel-icon">🚫</span>
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg></span>
             <span class="admin-panel-label">차단 사용자</span>
             <span class="admin-panel-arrow">›</span>
           </button>
@@ -2059,6 +2059,8 @@ function showAdminPanel() {
   panel.querySelector('[data-action="notice"]').addEventListener("click", () => {
     panel.remove();
     showNoticeInput();
+    // re-show admin panel after notice prompt completes (setTimeout to wait for prompt)
+    setTimeout(() => showAdminPanel(), 100);
   });
 
   // channel default color
@@ -2117,8 +2119,8 @@ function showAdminColorPanel() {
     </div>
   `;
 
-  panel.querySelector(".admin-color-close").addEventListener("click", () => panel.remove());
-  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+  panel.querySelector(".admin-color-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
 
   panel.querySelectorAll(".settings-color-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -2166,14 +2168,14 @@ function showAdminPasscodePanel() {
         <div class="admin-color-info" style="margin-bottom:16px;">현재 채널: ${currentChannelConfig.name}</div>
         <input class="passcode-dialog-input" type="text" placeholder="새 비밀번호 입력" autocomplete="off" style="margin-bottom:8px;" />
         <div class="admin-color-info" style="margin-bottom:16px;font-size:11px;">비우면 비밀번호 해제</div>
-        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
-        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:600;"></div>
+        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:400;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
+        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:400;"></div>
       </div>
     </div>
   `;
 
-  panel.querySelector(".admin-passcode-close").addEventListener("click", () => panel.remove());
-  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+  panel.querySelector(".admin-passcode-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
 
   const input = panel.querySelector(".passcode-dialog-input");
   const resultEl = panel.querySelector(".admin-passcode-result");
@@ -2228,8 +2230,8 @@ function showBlockedPanel() {
     </div>
   `;
 
-  panel.querySelector(".blocked-panel-close").addEventListener("click", () => panel.remove());
-  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
+  panel.querySelector(".blocked-panel-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
 
   panel.querySelectorAll(".blocked-panel-unblock").forEach((btn) => {
     btn.addEventListener("click", async () => {

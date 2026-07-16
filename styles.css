@@ -110,7 +110,7 @@ body {
 }
 [data-theme="dark"] .hdr-avatar { background: #2c2c2e; }
 .hdr-name {
-  font-size: calc(var(--bubble-font-size, 17px) - 5px); font-weight: 500;
+  font-size: calc(var(--bubble-font-size, 17px) - 5px); font-weight: 400;
   display: flex; align-items: center; gap: 2px;
   color: var(--gray-text);
   touch-action: manipulation;
@@ -242,9 +242,9 @@ body {
   font-size: 9px;
   color: var(--meta);
   margin: 2px 4px 2px;
-  font-weight: 500;
+  font-weight: 400;
 }
-.receipt b { font-weight: 700; color: var(--meta); }
+.receipt b { font-weight: 400; color: var(--meta); }
 .row.sent + .receipt-wrap { align-self: flex-end; }
 
 .delivered { font-size: 9px; color: var(--meta); }
@@ -331,7 +331,7 @@ body {
   font-size: 10px;
   color: var(--meta);
   margin: 0 0 2px 12px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* ---------- nickname / admin entry gate ---------- */
@@ -356,7 +356,7 @@ body {
   text-align: center;
 }
 .gate-logo { font-size: 40px; }
-.gate-title { font-size: 22px; font-weight: 900; margin-top: 6px; }
+.gate-title { font-size: 22px; font-weight: 400; margin-top: 6px; }
 .gate-sub { font-size: 12px; color: var(--meta); margin: 4px 0 20px; }
 .gate-input {
   width: 100%;
@@ -371,7 +371,7 @@ body {
 }
 .gate-admin {
   display: flex; align-items: center; gap: 10px;
-  font-size: 13px; color: var(--meta); font-weight: 700;
+  font-size: 13px; color: var(--meta); font-weight: 400;
   margin-bottom: 16px; cursor: pointer;
 }
 /* iOS-style toggle switch */
@@ -393,7 +393,7 @@ body {
 .gate-btn {
   width: 100%; border: none; cursor: pointer;
   background: linear-gradient(135deg, #F2E030, #c8e600);
-  color: #333; font-weight: 800; font-size: 15px;
+  color: #333; font-weight: 400; font-size: 15px;
   border-radius: 14px; padding: 13px;
   font-family: inherit;
   box-shadow: 0 4px 16px rgba(242,224,48,.4);
@@ -466,7 +466,7 @@ body {
 }
 .ctx-reaction-more {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--meta);
   background: var(--hairline);
   border-radius: 50%;
@@ -558,7 +558,6 @@ body {
   -webkit-backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
-  animation: ctxFade .2s ease;
 }
 .blocked-panel-content {
   width: 100%; max-width: 320px;
@@ -574,7 +573,7 @@ body {
   border-bottom: .5px solid var(--hairline);
 }
 .blocked-panel-header h3 {
-  margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 700;
+  margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 400;
 }
 .blocked-panel-close {
   background: none; border: none;
@@ -604,7 +603,7 @@ body {
   flex: 1; min-width: 0;
 }
 .blocked-panel-uid {
-  font-size: var(--bubble-font-size, 14px); font-weight: 500;
+  font-size: var(--bubble-font-size, 14px); font-weight: 400;
 }
 .blocked-panel-reason {
   font-size: calc(var(--bubble-font-size, 14px) - 2px);
@@ -616,7 +615,7 @@ body {
 .blocked-panel-unblock {
   background: none; border: 1px solid #ff3b30;
   color: #ff3b30;
-  font-size: calc(var(--bubble-font-size, 14px) - 3px); font-weight: 600;
+  font-size: calc(var(--bubble-font-size, 14px) - 3px); font-weight: 400;
   padding: 5px 10px;
   border-radius: 8px;
   cursor: pointer;
@@ -666,7 +665,7 @@ body {
 }
 .reaction-pill .reaction-count {
   font-size: calc(var(--bubble-font-size, 17px) - 5px);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--meta);
 }
 .reaction-pill.mine {
@@ -985,7 +984,7 @@ emoji-picker {
   padding: 16px 18px;
   border-bottom: .5px solid var(--hairline);
 }
-.settings-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 700; }
+.settings-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 400; }
 .settings-panel-close {
   background: none; border: none;
   font-size: 18px; color: var(--meta);
@@ -998,7 +997,7 @@ emoji-picker {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 12px 0;
 }
-.settings-label { font-size: var(--bubble-font-size, 15px); font-weight: 500; }
+.settings-label { font-size: var(--bubble-font-size, 15px); font-weight: 400; }
 .settings-font-control {
   display: flex; align-items: center; gap: 10px;
   width: 140px; justify-content: space-between;
@@ -1009,7 +1008,7 @@ emoji-picker {
   background: var(--input-bg);
   color: var(--gray-text);
   border-radius: 8px;
-  font-size: var(--bubble-font-size, 13px); font-weight: 700;
+  font-size: var(--bubble-font-size, 13px); font-weight: 400;
   cursor: pointer;
   font-family: inherit;
 }
@@ -1060,7 +1059,7 @@ emoji-picker {
   width: 100%;
   background: none; border: none;
   color: var(--tint);
-  font-size: var(--bubble-font-size, 15px); font-weight: 500;
+  font-size: var(--bubble-font-size, 15px); font-weight: 400;
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -1169,7 +1168,7 @@ emoji-picker {
   border-bottom: .5px solid var(--hairline);
   flex-shrink: 0;
 }
-.gallery-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 700; }
+.gallery-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 400; }
 .gallery-panel-close {
   background: none; border: none;
   font-size: 18px; color: var(--meta);
@@ -1260,7 +1259,7 @@ emoji-picker {
   border-bottom: .5px solid var(--hairline);
   flex-shrink: 0;
 }
-.notice-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 700; }
+.notice-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 400; }
 .notice-panel-close {
   background: none; border: none;
   font-size: 18px; color: var(--meta);
@@ -1276,7 +1275,7 @@ emoji-picker {
 .notice-section h4 {
   margin: 0 0 8px;
   font-size: var(--bubble-font-size, 15px);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--tint);
 }
 .notice-section ul {
@@ -1395,7 +1394,7 @@ emoji-picker {
 }
 .link-preview-title {
   font-size: calc(var(--bubble-font-size, 17px) - 2px);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.3;
   margin-bottom: 2px;
 }
@@ -1547,7 +1546,7 @@ emoji-picker {
   border-bottom: .5px solid var(--hairline);
   flex-shrink: 0;
 }
-.links-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 700; }
+.links-panel-header h3 { margin: 0; font-size: var(--bubble-font-size, 16px); font-weight: 400; }
 .links-panel-close {
   background: none; border: none;
   font-size: 18px; color: var(--meta);
@@ -1594,7 +1593,7 @@ emoji-picker {
 }
 .links-card-title {
   font-size: calc(var(--bubble-font-size, 17px) - 2px);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.3;
 }
 .links-card-url {
@@ -1649,7 +1648,7 @@ emoji-picker {
   font-size: calc(var(--bubble-font-size, 15px) - 3px);
   color: var(--meta);
   padding: 8px 4px 4px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* ---------- native embeds (Twitter/Instagram) ---------- */
@@ -1704,7 +1703,7 @@ emoji-picker {
 }
 .channel-picker-header h3 {
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 400;
   color: var(--gray-text);
 }
 .channel-picker-close {
@@ -1756,13 +1755,13 @@ emoji-picker {
 }
 .channel-picker-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--gray-text);
   text-align: center;
 }
 .channel-picker-check {
   color: var(--tint);
-  font-weight: 700;
+  font-weight: 400;
   font-size: 16px;
 }
 [data-theme="dark"] .channel-picker-item {
@@ -1805,7 +1804,7 @@ emoji-picker {
 }
 .passcode-dialog-title {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--gray-text);
   margin-bottom: 4px;
 }
@@ -1846,7 +1845,7 @@ emoji-picker {
   border-radius: 12px;
   padding: 11px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   font-family: inherit;
 }
@@ -1905,10 +1904,11 @@ emoji-picker {
 .admin-panel-header h3 {
   margin: 0;
   font-size: var(--bubble-font-size, 16px);
-  font-weight: 700;
+  font-weight: 400;
 }
 .admin-panel-close,
-.admin-color-close {
+.admin-color-close,
+.admin-passcode-close {
   background: none;
   border: none;
   cursor: pointer;
@@ -1942,19 +1942,26 @@ emoji-picker {
   background: rgba(0,0,0,.03);
 }
 .admin-panel-icon {
-  font-size: 18px;
-  width: 24px;
-  text-align: center;
+  width: calc(var(--bubble-font-size, 17px) + 4px);
+  height: calc(var(--bubble-font-size, 17px) + 4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--meta);
+}
+.admin-panel-icon svg {
+  width: calc(var(--bubble-font-size, 17px) + 2px);
+  height: calc(var(--bubble-font-size, 17px) + 2px);
 }
 .admin-panel-label {
   flex: 1;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--bubble-font-size, 15px);
+  font-weight: 400;
   text-align: left;
 }
 .admin-panel-arrow {
   color: var(--meta);
-  font-size: 18px;
+  font-size: var(--bubble-font-size, 18px);
 }
 .admin-color-info {
   font-size: 13px;
