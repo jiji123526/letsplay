@@ -50,6 +50,8 @@ let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
 let galleryItems = [];           // gallery photos
 let initialLoad = true;          // force scroll to bottom for first 3 seconds
+let hasScrolledInitial = false;
+let userInteracted = false;
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
 /* debounced render — batches rapid updates (reactions, etc.) into one render */
@@ -140,8 +142,9 @@ function saveReportedIds() {
    ============================================================ */
 function render() {
   // check if user is near the bottom before re-rendering
-  const isFirstRender = initialLoad && prevMessageIds.length === 0;
-  const shouldAutoScroll = !skipNextScroll && (isFirstRender || (!initialLoad && messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50));
+  const isFirstRender = !hasScrolledInitial;
+  const nearBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50;
+  const shouldAutoScroll = !skipNextScroll && (isFirstRender || (!initialLoad && nearBottom));
   skipNextScroll = false;
 
   // save embed elements before clearing DOM
@@ -197,8 +200,11 @@ function render() {
   });
 
   // only auto-scroll if user was already near the bottom
-  if (shouldAutoScroll) {
-    requestAnimationFrame(() => { messagesEl.scrollTop = 999999; });
+  if (shouldAutoScroll && !userInteracted) {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    hasScrolledInitial = true;
+  } else if (shouldAutoScroll && !initialLoad) {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   // track message IDs for reaction-only change detection
@@ -2240,18 +2246,14 @@ function startChat() {
   started = true;
   checkIfBlocked();
   // force scroll to bottom for first 5 seconds while data loads
-  setTimeout(() => { initialLoad = false; if (!userInteracted) messagesEl.scrollTop = 999999; }, 5000);
-  // multiple early scroll attempts to catch the bottom ASAP
-  let userInteracted = false;
+  setTimeout(() => { initialLoad = false; }, 5000);
+  // scroll anchor: scroll to bottom once after first render
+  hasScrolledInitial = false;
+  userInteracted = false;
   const stopAutoScroll = () => { userInteracted = true; };
   messagesEl.addEventListener("touchstart", stopAutoScroll, { once: true });
   messagesEl.addEventListener("wheel", stopAutoScroll, { once: true });
   input.addEventListener("focus", stopAutoScroll, { once: true });
-
-  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 100);
-  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 500);
-  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 1500);
-  setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 3000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   let galleryLoaded = false;
   subscribe((list) => {
