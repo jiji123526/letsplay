@@ -66,6 +66,8 @@ function formatMessage(row) {
     text: row.text,
     is_admin: row.is_admin,
     image: row.image || null,
+    imageW: row.image_w || null,
+    imageH: row.image_h || null,
     replyTo: row.reply_to,
     report: row.report,
     reportedMsgId: row.reported_msg_id,
@@ -79,7 +81,7 @@ function formatMessage(row) {
   };
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH }) {
   const authUid = currentUser.id;
   const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, created_at: new Date().toISOString() };
   if (replyTo) row.reply_to = replyTo;
@@ -89,6 +91,8 @@ export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, 
     const imageUrl = await uploadImage(image);
     row.image = imageUrl;
   }
+  if (imageW) row.image_w = imageW;
+  if (imageH) row.image_h = imageH;
   if (dm) row.dm = true;
   if (galleryId) row.gallery_id = galleryId;
   const { error } = await supabase.from("messages").insert(row);

@@ -21,6 +21,8 @@ create table messages (
   reported boolean default false,
   reactions jsonb default '{}',
   image text,
+  image_w integer,
+  image_h integer,
   created_at timestamptz default now()
 );
 

@@ -57,11 +57,13 @@ export function subscribe(cb) {
   return () => listeners.delete(cb);
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH }) {
   const list = load();
   const msg = { id: id(), uid, nick, text, is_admin: !!is_admin, replyTo: replyTo || null, createdAt: new Date() };
   if (report) { msg.report = true; msg.reportedMsgId = reportedMsgId || null; }
   if (image) { msg.image = image instanceof Blob ? URL.createObjectURL(image) : image; }
+  if (imageW) { msg.imageW = imageW; }
+  if (imageH) { msg.imageH = imageH; }
   if (dm) { msg.dm = true; }
   if (galleryId) { msg.galleryId = galleryId; }
   list.push(msg);

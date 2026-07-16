@@ -11,6 +11,11 @@
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, IS_MOCK } from "./backend.js";
 import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice } from "./admin-api.js";
+import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
+import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
+import { showGallery as showGalleryBase } from "./gallery.js";
+import { showLinks as showLinksBase } from "./links-panel.js";
+import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./search.js";
 import "emoji-picker-element";
 
 const $ = (s) => document.querySelector(s);
@@ -202,9 +207,7 @@ function render() {
     hasScrolledInitial = true;
     messagesEl.scrollTop = messagesEl.scrollHeight;
     // reveal container now that we're at the bottom (prevents FOUC)
-    if (messagesEl.style.visibility === "hidden") {
-      messagesEl.style.visibility = "visible";
-    }
+    messagesEl.style.visibility = "visible";
   } else if (nearBottom && !initialLoad) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -218,33 +221,7 @@ function render() {
   prevMessageIds = messages.filter(m => !m.report).map(m => m.id);
 
   // restore search highlights if search is active
-  if (document.querySelector(".search-bar")) {
-    const searchInput = document.querySelector(".search-input");
-    if (searchInput && searchInput.value.trim()) {
-      const query = searchInput.value.trim();
-      const queryLower = query.toLowerCase();
-      searchResults = [];
-      messages.forEach((m) => {
-        if (m.text && m.text.toLowerCase().includes(queryLower)) {
-          const row = document.getElementById(`msg-${m.id}`);
-          if (row) {
-            const bubble = row.querySelector(".bubble");
-            if (bubble) {
-              highlightTextInBubble(bubble, query);
-              searchResults.push(row);
-            }
-          }
-        }
-      });
-      if (searchResults.length > 0) {
-        if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
-        if (searchIndex < 0) searchIndex = searchResults.length - 1;
-        const row = searchResults[searchIndex];
-        const match = row?.querySelector(".search-match");
-        if (match) match.classList.add("search-active");
-      }
-    }
-  }
+  restoreSearchHighlights(messages);
 }
 
 function showDmMenu(e, msg, bubbleEl) {
@@ -460,6 +437,11 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         img.className = "bubble-img";
         img.src = imageSrc;
         img.alt = "photo";
+        // reserve space using stored dimensions to prevent layout shift
+        if (m.imageW && m.imageH) {
+          img.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
+          img.style.width = "100%";
+        }
         const expandBtn = document.createElement("button");
         expandBtn.className = "bubble-img-expand";
         expandBtn.textContent = "⤢";
@@ -718,6 +700,25 @@ function anonNameFor(uid) {
   // stable per-user tag like "익명#3f9a" so users are distinguishable
   return "익명#" + String(uid).slice(-4);
 }
+
+/* ---- Initialize search module ---- */
+initSearch();
+configureSearch({
+  getMessages: () => messages,
+  getAllMessages: () => allMessages,
+  searchServer: searchMessages,
+  onServerResults: (serverResults) => {
+    const newMsgs = serverResults.filter((m) => !allMessages.find((a) => a.id === m.id));
+    if (newMsgs.length > 0) {
+      allMessages = [...newMsgs, ...allMessages];
+      allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      refilterMessages();
+      render();
+    }
+  },
+  banner,
+  isMock: IS_MOCK,
+});
 
 initAuth().then((uid) => {
   myUid = uid;
@@ -1230,16 +1231,19 @@ async function send() {
   const sendUid = isAdmin ? "admin" : myUid;
   const msgData = { uid: sendUid, nick, text, is_admin: isAdmin };
   let photoData = null;
+  let photoDims = null;
   if (pendingPhoto) {
     photoData = pendingPhoto;
+    photoDims = pendingPhotoDimensions;
     pendingPhoto = null;
+    pendingPhotoDimensions = null;
     removePhotoPreview();
   }
   if (replyingTo) { msgData.replyTo = replyingTo.id; }
   clearReply();
   try {
     if (dmMode && !isAdmin) {
-      await sendDm({ uid: sendUid, nick, text, image: photoData });
+      await sendDm({ uid: sendUid, nick, text, image: photoData, imageW: photoDims?.width, imageH: photoDims?.height });
       dmMode = false;
       updateDmUI();
       banner("찍이에게 전송됨", "#9b59b6");
@@ -1248,6 +1252,8 @@ async function send() {
       if (photoData) {
         const galleryId = await saveToGallery(photoData);
         msgData.galleryId = galleryId;
+        msgData.imageW = photoDims?.width;
+        msgData.imageH = photoDims?.height;
       }
       await sendMessage(msgData);
     }
@@ -1275,175 +1281,12 @@ sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
    ============================================================ */
 
 function showFullImage(src, meta) {
-  const overlay = document.createElement("div");
-  overlay.className = "img-overlay";
-  const img = document.createElement("img");
-  img.src = src;
-  overlay.appendChild(img);
-
-  // show caption and date if provided
-  if (meta) {
-    const info = document.createElement("div");
-    info.className = "img-overlay-info";
-    let html = "";
-    if (meta.caption) html += `<div class="img-overlay-caption">${meta.caption}</div>`;
-    if (meta.date) {
-      const d = new Date(meta.date);
-      const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
-      html += `<button class="img-overlay-date">${dateStr} →</button>`;
-    }
-    info.innerHTML = html;
-    overlay.appendChild(info);
-
-    // date tap → navigate to message
-    const dateBtn = info.querySelector(".img-overlay-date");
-    if (dateBtn && meta.msgId) {
-      dateBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        overlay.remove();
-        // close gallery if open
-        document.querySelector(".gallery-panel")?.remove();
-        scrollToMessageSilent(meta.msgId);
-      });
-    }
-  }
-
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-  document.body.appendChild(overlay);
+  showFullImageBase(src, meta, scrollToMessageSilent);
 }
 
 /* ============================================================
-   LINK PREVIEW
+   LINK PREVIEW — handled by ./embeds.js
    ============================================================ */
-const previewCache = {};
-
-/* ---- Native embeds ---- */
-function embedTwitter(url, bubble) {
-  const tweetId = url.match(/status\/(\d+)/)?.[1];
-  if (!tweetId) return;
-
-  // hide the link text
-  const link = bubble.querySelector(`.bubble-link[href="${url}"]`) || bubble.querySelector(`.bubble-link`);
-  if (link) link.style.display = "none";
-
-  const container = document.createElement("div");
-  container.className = "embed-twitter";
-  container.style.minHeight = "80px";
-  bubble.appendChild(container);
-
-  // load Twitter widget script if not already loaded
-  function renderTweet() {
-    if (window.twttr?.widgets?.createTweet) {
-      window.twttr.widgets.createTweet(tweetId, container, {
-        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-        conversation: "none",
-        width: 320,
-      });
-    }
-  }
-
-  if (window.twttr?.widgets) {
-    renderTweet();
-  } else {
-    if (!document.getElementById("twitter-wjs")) {
-      const script = document.createElement("script");
-      script.id = "twitter-wjs";
-      script.src = "https://platform.twitter.com/widgets.js";
-      script.async = true;
-      document.body.appendChild(script);
-    }
-    (window.twttr = window.twttr || { _e: [] })._e.push(renderTweet);
-  }
-}
-
-function embedInstagram(url, bubble) {
-  // hide the link text
-  const link = bubble.querySelector(`.bubble-link[href="${url}"]`) || bubble.querySelector(`.bubble-link`);
-  if (link) link.style.display = "none";
-
-  const container = document.createElement("div");
-  container.className = "embed-instagram";
-  container.style.maxWidth = "320px";
-  container.innerHTML = `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="max-width:320px;width:100%;margin:0;border:0;border-radius:12px;background:#f4f4f4;"></blockquote>`;
-  bubble.appendChild(container);
-
-  // load Instagram embed script if not already loaded
-  function processEmbeds() {
-    if (window.instgrm?.Embeds?.process) {
-      window.instgrm.Embeds.process();
-    }
-  }
-
-  if (window.instgrm) {
-    processEmbeds();
-  } else if (!document.getElementById("insta-embed-js")) {
-    const script = document.createElement("script");
-    script.id = "insta-embed-js";
-    script.src = "https://www.instagram.com/embed.js";
-    script.async = true;
-    script.onload = processEmbeds;
-    document.body.appendChild(script);
-  } else {
-    setTimeout(processEmbeds, 1000);
-  }
-}
-
-async function fetchLinkPreview(url, bubble) {
-  // check cache first
-  if (previewCache[url]) {
-    renderPreviewCard(previewCache[url], bubble);
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.title && !data.image) return;
-    previewCache[url] = data;
-    renderPreviewCard(data, bubble);
-  } catch (e) {
-    // silently fail — no preview
-  }
-}
-
-function renderPreviewCard(data, bubble) {
-  const card = document.createElement("a");
-  card.className = "link-preview-card";
-  card.href = data.url;
-  card.target = "_blank";
-  card.rel = "noopener";
-
-  let html = "";
-  if (data.video) {
-    // render inline video player
-    html += `<video class="link-preview-video" src="${data.video}" poster="${data.image || ""}" controls playsinline preload="metadata"></video>`;
-    // prevent card link from triggering when interacting with video
-    card.addEventListener("click", (e) => {
-      if (e.target.tagName === "VIDEO") e.preventDefault();
-    });
-  } else if (data.image) {
-    html += `<img class="link-preview-img" src="${data.image}" alt="" />`;
-  }
-  html += `<div class="link-preview-body">`;
-  if (data.siteName) html += `<div class="link-preview-site">${data.siteName}</div>`;
-  if (data.title) html += `<div class="link-preview-title">${data.title}</div>`;
-  if (data.description) html += `<div class="link-preview-desc">${data.description.slice(0, 100)}${data.description.length > 100 ? "…" : ""}</div>`;
-  html += `</div>`;
-
-  card.innerHTML = html;
-
-  // hide the specific link that this preview replaces
-  bubble.querySelectorAll(".bubble-link").forEach((link) => {
-    if (link.href === data.url || link.textContent === data.url) {
-      link.style.display = "none";
-    }
-  });
-
-  bubble.appendChild(card);
-}
 
 function scrollToMessage(msgId) {
   const el = document.getElementById(`msg-${msgId}`);
@@ -1470,6 +1313,7 @@ function scrollToMessageSilent(msgId) {
 const photoBtn = $("#photoBtn");
 const photoInput = $("#photoInput");
 let pendingPhoto = null; // stores the compressed Blob/File until user sends
+let pendingPhotoDimensions = null; // { width, height } of pending photo
 let dmMode = false; // DM to admin mode
 
 photoBtn.addEventListener("click", (e) => {
@@ -1605,15 +1449,20 @@ photoInput.addEventListener("change", async () => {
 
   // compress to Blob (skip for GIFs to preserve animation)
   let photoBlob;
+  let photoDimensions = null;
   if (isGif) {
     photoBlob = file;
+    photoDimensions = await getImageDimensions(file);
   } else {
-    photoBlob = await compressImage(file, 2000, 0.85);
+    const result = await compressImage(file, 2000, 0.85);
+    photoBlob = result.blob;
+    photoDimensions = { width: result.width, height: result.height };
   }
 
   // use object URL for preview (zero-copy, no base64)
   const previewUrl = URL.createObjectURL(photoBlob);
   pendingPhoto = photoBlob;
+  pendingPhotoDimensions = photoDimensions;
   showPhotoPreview(previewUrl);
   input.focus();
   toggleSend();
@@ -1644,161 +1493,20 @@ function removePhotoPreview() {
   }
 }
 
-function compressImage(file, maxWidth, quality) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      let w = img.width, h = img.height;
-      if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality);
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
+/* compressImage — imported from ./photo.js */
 
 /* ============================================================
-   GALLERY VIEW
+   GALLERY VIEW — handled by ./gallery.js
    ============================================================ */
 function showGallery() {
-  document.querySelector(".gallery-panel")?.remove();
-
-  // group gallery items by date (KST)
-  function galleryDateLabel(d) {
-    if (!d) return "날짜 없음";
-    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-    return `${kst.getUTCFullYear()}/${String(kst.getUTCMonth()+1).padStart(2,"0")}/${String(kst.getUTCDate()).padStart(2,"0")}`;
-  }
-
-  let galleryHtml = "";
-  if (galleryItems.length === 0) {
-    galleryHtml = '<div class="gallery-empty">사진이 없습니다</div>';
-  } else {
-    let lastDate = "";
-    galleryItems.forEach((g) => {
-      const dateLabel = galleryDateLabel(g.createdAt);
-      if (dateLabel !== lastDate) {
-        lastDate = dateLabel;
-        galleryHtml += `<div class="gallery-date-divider">${dateLabel}</div>`;
-      }
-      galleryHtml += `<img class="gallery-thumb" src="${g.image}" data-id="${g.id}" />`;
-    });
-  }
-
-  const panel = document.createElement("div");
-  panel.className = "gallery-panel";
-
-  panel.innerHTML = `
-    <div class="gallery-panel-content">
-      <div class="gallery-panel-header">
-        <h3><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> 갤러리</h3>
-        <button class="gallery-panel-close">✕</button>
-      </div>
-      <div class="gallery-grid">
-        ${galleryHtml}
-      </div>
-    </div>
-  `;
-
-  panel.querySelector(".gallery-panel-close").addEventListener("click", () => panel.remove());
-  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
-
-  // tap a photo to view full with metadata
-  panel.querySelectorAll(".gallery-thumb").forEach((img) => {
-    img.addEventListener("click", () => {
-      const galleryId = img.dataset.id;
-      // find the message that references this gallery item
-      const msg = allMessages.find((m) => m.galleryId === galleryId);
-      const meta = msg ? { caption: msg.text || "", date: msg.createdAt, msgId: msg.id } : null;
-      showFullImage(img.src, meta);
-    });
-  });
-
-  document.body.appendChild(panel);
+  showGalleryBase(galleryItems, allMessages, showFullImage);
 }
 
 /* ============================================================
-   LINKS PANEL — shows all shared links with previews
+   LINKS PANEL — handled by ./links-panel.js
    ============================================================ */
 function showLinks() {
-  document.querySelector(".links-panel")?.remove();
-
-  // extract all URLs from messages
-  const urlRegex = /(https?:\/\/[^\s]+|(?:www\.|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|dev|app|co|me|tv|gg|xyz|kr|jp))[^\s]*)/g;
-  const links = [];
-  allMessages.forEach((m) => {
-    if (m.text) {
-      const matches = m.text.match(urlRegex);
-      if (matches) {
-        matches.forEach((url) => {
-          const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-          links.push({ url: fullUrl, date: m.createdAt, msgId: m.id });
-        });
-      }
-    }
-  });
-
-  // deduplicate by URL, keep most recent
-  const seen = new Map();
-  links.forEach((l) => { if (!seen.has(l.url)) seen.set(l.url, l); });
-  const uniqueLinks = [...seen.values()].reverse(); // newest first
-
-  const panel = document.createElement("div");
-  panel.className = "links-panel";
-
-  panel.innerHTML = `
-    <div class="links-panel-content">
-      <div class="links-panel-header">
-        <h3><svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 링크</h3>
-        <button class="links-panel-close">✕</button>
-      </div>
-      <div class="links-list" id="linksList">
-        ${uniqueLinks.length === 0 ? '<div class="links-empty">공유된 링크가 없습니다</div>' : '<div class="links-loading">로딩 중...</div>'}
-      </div>
-    </div>
-  `;
-
-  panel.querySelector(".links-panel-close").addEventListener("click", () => panel.remove());
-  panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
-
-  document.body.appendChild(panel);
-
-  // fetch previews for each link
-  if (uniqueLinks.length > 0) {
-    const listEl = panel.querySelector("#linksList");
-    listEl.innerHTML = "";
-    uniqueLinks.forEach(async (link) => {
-      const card = document.createElement("div");
-      card.className = "links-card";
-      card.style.cursor = "pointer";
-      card.innerHTML = `<div class="links-card-url">${link.url}</div>`;
-      card.addEventListener("click", () => {
-        panel.remove();
-        scrollToMessageSilent(link.msgId);
-      });
-      listEl.appendChild(card);
-
-      // try to fetch preview
-      try {
-        const res = await fetch(`/api/preview?url=${encodeURIComponent(link.url)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.title || data.image) {
-            let html = "";
-            if (data.image) html += `<img class="links-card-img" src="${data.image}" />`;
-            html += `<div class="links-card-body">`;
-            if (data.siteName) html += `<div class="links-card-site">${data.siteName}</div>`;
-            if (data.title) html += `<div class="links-card-title">${data.title}</div>`;
-            html += `</div>`;
-            card.innerHTML = html;
-          }
-        }
-      } catch (e) { /* keep URL fallback */ }
-    });
-  }
+  showLinksBase(allMessages, scrollToMessageSilent);
 }
 
 /* ============================================================
@@ -1910,201 +1618,8 @@ function showNoticePanel() {
 }
 
 /* ============================================================
-   SEARCH — find messages with navigation arrows
+   SEARCH — handled by ./search.js
    ============================================================ */
-let searchResults = [];
-let searchIndex = -1;
-
-document.querySelector(".hdr-search")?.addEventListener("click", () => {
-  toggleSearchBar();
-});
-
-function toggleSearchBar() {
-  const existing = document.querySelector(".search-bar");
-  if (existing) { closeSearchBar(); return; }
-
-  const bar = document.createElement("div");
-  bar.className = "search-bar";
-  bar.innerHTML = `
-    <input class="search-input" type="text" placeholder="검색..." autocomplete="off" />
-    <button class="search-nav-btn search-prev" aria-label="Previous">
-      <svg viewBox="0 0 24 24" width="24" height="24"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button class="search-nav-btn search-next" aria-label="Next">
-      <svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button class="search-close-btn">✕</button>
-  `;
-
-  document.querySelector(".chat-header").insertAdjacentElement("afterend", bar);
-
-  const searchInput = bar.querySelector(".search-input");
-  
-  const prevBtn = bar.querySelector(".search-prev");
-  const nextBtn = bar.querySelector(".search-next");
-  prevBtn.disabled = true;
-  nextBtn.disabled = true;
-
-  searchInput.focus();
-
-  let debounceTimer;
-  searchInput.addEventListener("input", () => {
-    // clear highlights while typing (but don't search yet)
-    document.querySelectorAll(".search-match").forEach((el) => {
-      const parent = el.parentNode;
-      el.replaceWith(el.textContent);
-      if (parent) parent.normalize();
-    });
-    searchResults = [];
-    searchIndex = -1;
-    const bar = document.querySelector(".search-bar");
-    if (bar) {
-      bar.querySelector(".search-prev").disabled = true;
-      bar.querySelector(".search-next").disabled = true;
-    }
-  });
-
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.isComposing) {
-      e.preventDefault();
-      if (searchResults.length === 0) {
-        performSearch(searchInput.value.trim());
-      } else {
-        navigateSearch(-1); // next older match
-      }
-    }
-    if (e.key === "Escape") closeSearchBar();
-  });
-
-  prevBtn.addEventListener("click", () => navigateSearch(-1));
-  nextBtn.addEventListener("click", () => navigateSearch(1));
-  bar.querySelector(".search-close-btn").addEventListener("click", closeSearchBar);
-}
-
-function closeSearchBar() {
-  document.querySelector(".search-bar")?.remove();
-  // clear highlights
-  document.querySelectorAll(".search-match").forEach((el) => {
-    const parent = el.parentNode;
-    el.replaceWith(el.textContent);
-    if (parent) parent.normalize();
-  });
-  searchResults = [];
-  searchIndex = -1;
-}
-
-async function performSearch(query) {
-  // clear previous highlights
-  document.querySelectorAll(".search-match").forEach((el) => {
-    const parent = el.parentNode;
-    el.replaceWith(el.textContent);
-    if (parent) parent.normalize();
-  });
-  searchResults = [];
-  searchIndex = -1;
-
-  if (!query) return;
-
-  // search raw message data (works even for hidden link text)
-  const queryLower = query.toLowerCase();
-  messages.forEach((m) => {
-    if (m.text && m.text.toLowerCase().includes(queryLower)) {
-      const row = document.getElementById(`msg-${m.id}`);
-      if (row) {
-        const bubble = row.querySelector(".bubble");
-        if (bubble) {
-          highlightTextInBubble(bubble, query);
-          searchResults.push(row);
-        }
-      }
-    }
-  });
-
-  // if no local results, try server-side search
-  if (searchResults.length === 0 && !IS_MOCK) {
-    try {
-      const serverResults = await searchMessages(query);
-      if (serverResults.length > 0) {
-        // load these messages into the view
-        const newMsgs = serverResults.filter((m) => !allMessages.find((a) => a.id === m.id));
-        if (newMsgs.length > 0) {
-          allMessages = [...newMsgs, ...allMessages];
-          allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-          refilterMessages();
-          render();
-          // re-search locally now that messages are loaded
-          messages.forEach((m) => {
-            if (m.text && m.text.toLowerCase().includes(queryLower)) {
-              const row = document.getElementById(`msg-${m.id}`);
-              if (row) {
-                const bubble = row.querySelector(".bubble");
-                if (bubble) {
-                  highlightTextInBubble(bubble, query);
-                  searchResults.push(row);
-                }
-              }
-            }
-          });
-        }
-      }
-    } catch (e) { /* server search failed, stay with no results */ }
-  }
-
-  // results are in DOM order (old → new), start at the last one (newest)
-  if (searchResults.length > 0) {
-    searchIndex = searchResults.length - 1;
-    highlightCurrent();
-  } else {
-    banner("검색 결과가 없습니다", "#666");
-  }
-}
-
-function highlightTextInBubble(bubble, query) {
-  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, "gi");
-  const textNodes = [];
-  while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-  textNodes.forEach((node) => {
-    if (regex.test(node.textContent)) {
-      const span = document.createElement("span");
-      span.innerHTML = node.textContent.replace(regex, '<mark class="search-match">$1</mark>');
-      node.replaceWith(span);
-    }
-  });
-}
-
-function navigateSearch(direction) {
-  if (searchResults.length === 0) return;
-  // remove current active marker
-  searchResults[searchIndex]?.querySelector(".search-active")?.classList.remove("search-active");
-
-  // direction: -1 = up arrow = older (lower index), +1 = down arrow = newer (higher index)
-  searchIndex += direction;
-  if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
-  if (searchIndex < 0) searchIndex = 0;
-
-  highlightCurrent();
-}
-
-function highlightCurrent() {
-  const row = searchResults[searchIndex];
-  if (!row) return;
-  // mark current match as active
-  const match = row.querySelector(".search-match");
-  if (match) match.classList.add("search-active");
-  row.scrollIntoView({ behavior: "smooth", block: "center" });
-
-  // update arrow button states
-  // up (prev/older) disabled at index 0, down (next/newer) disabled at last index
-  const bar = document.querySelector(".search-bar");
-  if (bar) {
-    const prevBtn = bar.querySelector(".search-prev");
-    const nextBtn = bar.querySelector(".search-next");
-    prevBtn.disabled = searchIndex <= 0;
-    nextBtn.disabled = searchIndex >= searchResults.length - 1;
-  }
-}
 
 document.querySelector(".hdr-menu")?.addEventListener("click", (e) => {
   showHeaderMenu(e);
@@ -2266,8 +1781,7 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
-  // hide messages until first scroll-to-bottom completes (prevents FOUC)
-  messagesEl.style.visibility = "hidden";
+  // messages container starts hidden via CSS; revealed after first scroll-to-bottom
   // force scroll to bottom for first 2 seconds while images load
   setTimeout(() => { initialLoad = false; }, 2000);
   // scroll anchor: scroll to bottom once after first render

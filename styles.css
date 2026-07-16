@@ -123,6 +123,7 @@ body {
   display: flex;
   flex-direction: column;
   -webkit-overflow-scrolling: touch;
+  visibility: hidden;
 }
 
 /* day / time separator */
