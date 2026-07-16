@@ -5,14 +5,14 @@
    backend based on the BACKEND setting in config.js.
    ============================================================ */
 
-import { BACKEND, USE_MOCK } from "./config.js";
+import { BACKEND, USE_MOCK } from "../../config.js";
 
 let impl;
 
 if (USE_MOCK || BACKEND === "mock") {
-  impl = await import("./mock-backend.js");
+  impl = await import("./mock.js");
 } else {
-  impl = await import("./supabase-backend.js");
+  impl = await import("./supabase.js");
 }
 
 export const initAuth           = impl.initAuth;

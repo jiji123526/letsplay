@@ -9,14 +9,14 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, IS_MOCK } from "./backend.js";
-import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode } from "./admin-api.js";
-import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
-import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
-import { showGallery as showGalleryBase } from "./gallery.js";
-import { showLinks as showLinksBase } from "./links-panel.js";
-import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./search.js";
-import { channels } from "./config.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, IS_MOCK } from "./backend/index.js";
+import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode } from "./admin/api.js";
+import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
+import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
+import { showGallery as showGalleryBase } from "./modules/gallery.js";
+import { showLinks as showLinksBase } from "./modules/links-panel.js";
+import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
+import { channels } from "../config.js";
 import "emoji-picker-element";
 
 const $ = (s) => document.querySelector(s);
@@ -722,6 +722,11 @@ const currentChannelConfig = channels.find(c => c.id === urlChannel) || channels
 sessionStorage.removeItem("ch_switching");
 
 document.querySelector(".hdr-name").textContent = currentChannelConfig.name;
+document.querySelector(".chat-header").addEventListener("click", (e) => {
+  // scroll to top unless tapping avatar or buttons
+  if (e.target.closest(".hdr-avatar") || e.target.closest(".hdr-btn")) return;
+  messagesEl.scrollTo({ top: 0, behavior: "smooth" });
+});
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
 const savedBubbleColor = localStorage.getItem(`bubbleColor_${urlChannel}`);
 if (savedBubbleColor) {
@@ -732,11 +737,13 @@ if (savedBubbleColor) {
 // admin: fetch synced color from server after auth
 async function syncAdminColor() {
   if (!isAdmin || IS_MOCK) return;
-  const color = await adminGetColor(urlChannel);
-  if (color) {
-    localStorage.setItem(`bubbleColor_${urlChannel}`, color);
-    document.documentElement.style.setProperty("--bubble-sent", color);
-  }
+  try {
+    const color = await adminGetColor(urlChannel);
+    if (color) {
+      localStorage.setItem(`bubbleColor_${urlChannel}`, color);
+      document.documentElement.style.setProperty("--bubble-sent", color);
+    }
+  } catch { /* API unavailable locally */ }
 }
 
 /* ---- Channel picker (tap on avatar) ---- */
@@ -1069,7 +1076,7 @@ async function doBlock(uid, reason) {
 async function doUnblock(uid) {
   if (isAdmin && !IS_MOCK) await adminUnblock(uid);
   else {
-    const { unblockUser: ub } = await import("./backend.js");
+    const { unblockUser: ub } = await import("./backend/index.js");
     await ub(uid);
   }
 }
@@ -1279,7 +1286,18 @@ function showEmojiPicker(e, msg, bubbleRect) {
    ============================================================ */
 const input   = $("#msgInput");
 const sendBtn = $("#sendBtn");
+const scrollBottomBtn = $("#scrollBottomBtn");
 let replyingTo = null; // { id, text } of message being replied to
+
+/* ---- Scroll-to-bottom FAB ---- */
+messagesEl.addEventListener("scroll", () => {
+  const distFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+  scrollBottomBtn.classList.toggle("visible", distFromBottom >= 120);
+});
+scrollBottomBtn.addEventListener("click", () => {
+  messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
+  scrollBottomBtn.classList.remove("visible");
+});
 
 function toggleSend() {
   const has = input.value.trim().length > 0 || pendingPhotos.length > 0;
