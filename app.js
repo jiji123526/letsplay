@@ -999,7 +999,7 @@ async function doDeleteDm(id) {
 }
 
 async function doSetNotice(text) {
-  if (isAdmin && !IS_MOCK) await adminSetNotice(text);
+  if (isAdmin && !IS_MOCK) await adminSetNotice(text, urlChannel);
   else await setNotice(text);
 }
 
@@ -1440,7 +1440,7 @@ let currentNotice = "";
 
 function setNoticeBanner(text) {
   currentNotice = text;
-  localStorage.removeItem("noticeDismissed");
+  localStorage.removeItem(`noticeDismissed_${urlChannel}`);
   doSetNotice(text);
   renderNoticeBanner();
 }
@@ -1449,7 +1449,7 @@ function renderNoticeBanner() {
   document.querySelector(".notice-banner")?.remove();
   if (!currentNotice) return;
   // don't show if user dismissed it
-  if (localStorage.getItem("noticeDismissed") === currentNotice) return;
+  if (localStorage.getItem(`noticeDismissed_${urlChannel}`) === currentNotice) return;
 
   // parse notice: JSON with title/body or plain text (backward compat)
   let title = currentNotice;
@@ -1490,7 +1490,7 @@ function renderNoticeBanner() {
   }
 
   banner.querySelector(".notice-banner-close").addEventListener("click", () => {
-    localStorage.setItem("noticeDismissed", currentNotice);
+    localStorage.setItem(`noticeDismissed_${urlChannel}`, currentNotice);
     banner.remove();
   });
 
@@ -1951,7 +1951,7 @@ function startChat() {
   subscribeNotice((text) => {
     // only reset dismiss when notice actually changes (not on first load)
     if (noticeInitialized && text && text !== currentNotice) {
-      localStorage.removeItem("noticeDismissed");
+      localStorage.removeItem(`noticeDismissed_${urlChannel}`);
     }
     noticeInitialized = true;
     currentNotice = text;

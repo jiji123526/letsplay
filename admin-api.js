@@ -61,6 +61,6 @@ export async function adminDeleteGallery(id) {
   return adminCall("deleteGallery", { id });
 }
 
-export async function adminSetNotice(text) {
-  return adminCall("setNotice", { text });
+export async function adminSetNotice(text, channelId) {
+  return adminCall("setNotice", { text, channelId });
 }

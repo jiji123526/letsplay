@@ -78,8 +78,9 @@ export default async function handler(req, res) {
       }
 
       case "setNotice": {
-        const { text } = payload;
-        const { error } = await supabase.from("config").upsert({ id: "notice", text, updated_at: new Date().toISOString() });
+        const { text, channelId } = payload;
+        const noticeId = `notice_${channelId || "main"}`;
+        const { error } = await supabase.from("config").upsert({ id: noticeId, text, channel_id: channelId || "main", updated_at: new Date().toISOString() });
         if (error) throw error;
         return res.json({ ok: true });
       }
