@@ -712,21 +712,8 @@ setChannel(urlChannel);
 /* ---- Update header to reflect current channel ---- */
 const currentChannelConfig = channels.find(c => c.id === urlChannel) || channels[0];
 
-// gate: if channel requires passcode and user hasn't entered it
-// only prompt if navigating from another channel (not direct external access)
-if (currentChannelConfig.passcode && !isAdmin) {
-  const accessKey = `ch_access_${urlChannel}`;
-  const fromPicker = sessionStorage.getItem("ch_switching") === "true";
-  sessionStorage.removeItem("ch_switching");
-  if (fromPicker && localStorage.getItem(accessKey) !== "true") {
-    const code = prompt(`"${currentChannelConfig.name}" 입장 코드를 입력하세요:`);
-    if (!code || code.trim() !== currentChannelConfig.passcode) {
-      window.location.href = "/";
-    } else {
-      localStorage.setItem(accessKey, "true");
-    }
-  }
-}
+// passcode is handled by the channel picker before navigation
+sessionStorage.removeItem("ch_switching");
 
 document.querySelector(".hdr-name").textContent = currentChannelConfig.name;
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
@@ -761,9 +748,9 @@ function showChannelPicker() {
         const targetChannel = channels.find(c => c.id === ch);
         // check if channel requires a passcode (admins skip)
         if (targetChannel?.passcode && !isAdmin) {
-          const code = prompt("입장 코드를 입력하세요:");
+          const code = prompt(`${targetChannel.name}: 비밀번호를 입력하세요`);
           if (!code || code.trim() !== targetChannel.passcode) {
-            banner("입장 코드가 틀렸습니다");
+            banner("비밀번호가 틀렸습니다");
             return;
           }
         }
@@ -1343,6 +1330,7 @@ async function send() {
       await sendMessage(msgData);
     }
     sendTimestamps.push(Date.now());
+    input.blur(); // dismiss keyboard
   }
   catch (e) { console.error("send failed", e); banner("전송 실패"); }
 }

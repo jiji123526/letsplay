@@ -38,10 +38,10 @@ export function subscribe(cb) {
   // initial fetch
   fetchMessages().then(cb);
 
-  // realtime subscription — filter by channel
+  // realtime subscription — re-fetch on any change (filter in fetchMessages)
   const channel = supabase
     .channel(`messages-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `channel_id=eq.${channelId}` }, () => {
+    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
       fetchMessages().then(cb);
     })
     .subscribe();
@@ -163,7 +163,7 @@ export function subscribeBlocked(cb) {
 
   const channel = supabase
     .channel(`blocked-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "blocked", filter: `channel_id=eq.${channelId}` }, () => {
+    .on("postgres_changes", { event: "*", schema: "public", table: "blocked" }, () => {
       fetchBlocked().then((list) => { _blockedList = list; _blockedListeners.forEach((c) => c(list)); });
     })
     .subscribe();
@@ -204,7 +204,7 @@ export function subscribeDm(cb) {
 
   const channel = supabase
     .channel(`dm-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "dm", filter: `channel_id=eq.${channelId}` }, () => {
+    .on("postgres_changes", { event: "*", schema: "public", table: "dm" }, () => {
       fetchDm().then(cb);
     })
     .subscribe();
@@ -253,7 +253,7 @@ export function subscribeGallery(cb) {
 
   const channel = supabase
     .channel(`gallery-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "gallery", filter: `channel_id=eq.${channelId}` }, () => {
+    .on("postgres_changes", { event: "*", schema: "public", table: "gallery" }, () => {
       fetchGallery().then(cb);
     })
     .subscribe();
