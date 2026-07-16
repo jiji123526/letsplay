@@ -1977,8 +1977,8 @@ emoji-picker {
   position: fixed;
   bottom: 70px;
   right: 16px;
-  width: 36px;
-  height: 36px;
+  width: calc(var(--bubble-font-size, 17px) + 19px);
+  height: calc(var(--bubble-font-size, 17px) + 19px);
   border-radius: 50%;
   background: var(--bg);
   border: .5px solid var(--hairline);
