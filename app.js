@@ -55,9 +55,80 @@ let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") |
 /* debounced render — batches rapid updates (reactions, etc.) into one render */
 let renderTimer = null;
 let skipNextScroll = false;
+let prevMessageIds = [];
+const embedCache = new Map(); // msgId → embed DOM element
+
 function debouncedRender() {
   if (renderTimer) cancelAnimationFrame(renderTimer);
   renderTimer = requestAnimationFrame(() => { renderTimer = null; skipNextScroll = true; render(); });
+}
+
+// check if only reactions changed (same messages, same order)
+function canPatchReactions(newList) {
+  if (prevMessageIds.length === 0) return false;
+  const newIds = messages.map(m => m.id);
+  if (newIds.length !== prevMessageIds.length) return false;
+  for (let i = 0; i < newIds.length; i++) {
+    if (newIds[i] !== prevMessageIds[i]) return false;
+  }
+  // also check that text/deleted/image hasn't changed (only reactions differ)
+  for (const m of messages) {
+    const row = document.getElementById(`msg-${m.id}`);
+    if (!row) return false;
+  }
+  return true;
+}
+
+// update only reaction badges in the DOM without full re-render
+function patchReactions() {
+  const reactUid = isAdmin ? "admin" : myUid;
+  messages.forEach((m) => {
+    const row = document.getElementById(`msg-${m.id}`);
+    if (!row) return;
+    const existingBadge = row.querySelector(".reaction-badge");
+    const reactions = m.reactions || {};
+    const keys = Object.keys(reactions);
+
+    if (keys.length === 0) {
+      if (existingBadge) existingBadge.remove();
+      return;
+    }
+
+    // group by emoji
+    const counts = {};
+    const emojiOrder = [];
+    Object.entries(reactions).forEach(([key, emoji]) => {
+      if (!counts[emoji]) { counts[emoji] = { count: 0, mine: false }; emojiOrder.push(emoji); }
+      counts[emoji].count++;
+      if (key.startsWith(`${reactUid}_`)) counts[emoji].mine = true;
+    });
+    emojiOrder.sort();
+
+    // build new badge content
+    const side = row.classList.contains("sent") ? "sent" : "recv";
+    let badge = existingBadge;
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.className = `reaction-badge ${side}`;
+      const col = row.querySelector(".bubble-col");
+      if (col) col.appendChild(badge);
+    }
+    badge.innerHTML = "";
+    emojiOrder.forEach((emoji) => {
+      const data = counts[emoji];
+      const pill = document.createElement("button");
+      pill.className = `reaction-pill${data.mine ? " mine" : ""}`;
+      pill.innerHTML = `${emoji} <span class="reaction-count">${data.count}</span>`;
+      pill.addEventListener("click", (e) => { e.stopPropagation(); addReactionBackend(m.id, emoji, reactUid); });
+      badge.appendChild(pill);
+    });
+    // add + button
+    const addBtn = document.createElement("button");
+    addBtn.className = "reaction-add-btn";
+    addBtn.textContent = "+";
+    addBtn.addEventListener("click", (e) => { e.stopPropagation(); showEmojiPicker(e, m); });
+    badge.appendChild(addBtn);
+  });
 }
 
 function saveReportedIds() {
@@ -71,6 +142,16 @@ function render() {
   // check if user is near the bottom before re-rendering
   const shouldAutoScroll = !skipNextScroll && (initialLoad || messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50);
   skipNextScroll = false;
+
+  // save embed elements before clearing DOM
+  messagesEl.querySelectorAll(".embed-twitter, .embed-instagram").forEach((el) => {
+    const row = el.closest(".row[id]");
+    if (row) {
+      const msgId = row.id.replace("msg-", "");
+      embedCache.set(msgId, el);
+      el.remove(); // detach but keep in cache
+    }
+  });
 
   messagesEl.innerHTML = "";
 
@@ -128,6 +209,9 @@ function render() {
       setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
     }
   }
+
+  // track message IDs for reaction-only change detection
+  prevMessageIds = messages.filter(m => !m.report).map(m => m.id);
 
   // restore search highlights if search is active
   if (document.querySelector(".search-bar")) {
@@ -410,9 +494,17 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         urls.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
           if (twitterRegex.test(fullUrl)) {
-            embedTwitter(fullUrl, bubble);
+            if (embedCache.has(m.id)) {
+              const link = bubble.querySelector(".bubble-link"); if (link) link.style.display = "none";
+              bubble.appendChild(embedCache.get(m.id));
+              embedCache.delete(m.id);
+            } else { embedTwitter(fullUrl, bubble); }
           } else if (instagramRegex.test(fullUrl)) {
-            embedInstagram(fullUrl, bubble);
+            if (embedCache.has(m.id)) {
+              const link = bubble.querySelector(".bubble-link"); if (link) link.style.display = "none";
+              bubble.appendChild(embedCache.get(m.id));
+              embedCache.delete(m.id);
+            } else { embedInstagram(fullUrl, bubble); }
           } else {
             fetchLinkPreview(fullUrl, bubble);
           }
@@ -945,8 +1037,7 @@ function addReaction(msgId, emoji) {
     } else {
       msg.reactions[key] = emoji;
     }
-    skipNextScroll = true;
-    render();
+    patchReactions();
   }
 
   // then sync to backend
@@ -2171,7 +2262,12 @@ function startChat() {
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
-    debouncedRender();
+    // check if only reactions changed (same message count/ids)
+    if (canPatchReactions(list)) {
+      patchReactions();
+    } else {
+      debouncedRender();
+    }
   });
   // subscribe to DMs (admin sees them in the chat)
   subscribeDm((list) => {
@@ -2182,10 +2278,10 @@ function startChat() {
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
-    render();
+    debouncedRender();
   });
   // subscribe to gallery
-  subscribeGallery((list) => { galleryItems = list; render(); });
+  subscribeGallery((list) => { galleryItems = list; debouncedRender(); });
   // subscribe to notice
   let noticeInitialized = false;
   subscribeNotice((text) => {
