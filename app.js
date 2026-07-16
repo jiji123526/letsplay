@@ -140,7 +140,8 @@ function saveReportedIds() {
    ============================================================ */
 function render() {
   // check if user is near the bottom before re-rendering
-  const shouldAutoScroll = !skipNextScroll && (initialLoad || messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50);
+  const isFirstRender = initialLoad && prevMessageIds.length === 0;
+  const shouldAutoScroll = !skipNextScroll && (isFirstRender || (!initialLoad && messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 50));
   skipNextScroll = false;
 
   // save embed elements before clearing DOM
@@ -198,16 +199,6 @@ function render() {
   // only auto-scroll if user was already near the bottom
   if (shouldAutoScroll) {
     requestAnimationFrame(() => { messagesEl.scrollTop = 999999; });
-    if (initialLoad) {
-      const imgs = messagesEl.querySelectorAll("img");
-      imgs.forEach((img) => {
-        if (!img.complete) {
-          img.addEventListener("load", () => { messagesEl.scrollTop = 999999; }, { once: true });
-        }
-      });
-      // extra delayed scroll as final fallback
-      setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
-    }
   }
 
   // track message IDs for reaction-only change detection
@@ -2250,6 +2241,11 @@ function startChat() {
   checkIfBlocked();
   // force scroll to bottom for first 5 seconds while data loads
   setTimeout(() => { initialLoad = false; messagesEl.scrollTop = 999999; }, 5000);
+  // multiple early scroll attempts to catch the bottom ASAP
+  setTimeout(() => { messagesEl.scrollTop = 999999; }, 100);
+  setTimeout(() => { messagesEl.scrollTop = 999999; }, 500);
+  setTimeout(() => { messagesEl.scrollTop = 999999; }, 1500);
+  setTimeout(() => { messagesEl.scrollTop = 999999; }, 3000);
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
   subscribe((list) => {
     allMessages = list;
