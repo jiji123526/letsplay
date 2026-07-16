@@ -2278,10 +2278,10 @@ function startChat() {
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
-    debouncedRender();
+    if (!initialLoad) debouncedRender();
   });
   // subscribe to gallery
-  subscribeGallery((list) => { galleryItems = list; debouncedRender(); });
+  subscribeGallery((list) => { galleryItems = list; if (!initialLoad) debouncedRender(); });
   // subscribe to notice
   let noticeInitialized = false;
   subscribeNotice((text) => {
