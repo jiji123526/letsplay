@@ -316,3 +316,10 @@ export async function searchMessages(query) {
     .limit(50);
   return (data || []).map(formatMessage);
 }
+
+/* ---- Passcode (public read) ---- */
+export async function getChannelPasscode(chId) {
+  const passcodeId = `passcode_${chId || "main"}`;
+  const { data } = await supabase.from("config").select("text").eq("id", passcodeId).single();
+  return data?.text || null;
+}

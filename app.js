@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, IS_MOCK } from "./backend.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, IS_MOCK } from "./backend.js";
 import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode } from "./admin-api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./photo.js";
@@ -825,7 +825,7 @@ function showPasscodeDialog(targetChannel, onSuccess) {
   let storedHash = targetChannel.passcode || null;
   let hashReady = IS_MOCK;
   if (!IS_MOCK) {
-    adminGetPasscode(targetChannel.id).then(dbHash => {
+    getChannelPasscode(targetChannel.id).then(dbHash => {
       if (dbHash) storedHash = dbHash;
       hashReady = true;
     }).catch(() => { hashReady = true; });
