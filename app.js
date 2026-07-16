@@ -2252,7 +2252,8 @@ function startChat() {
   setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 500);
   setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 1500);
   setTimeout(() => { if (!userInteracted) messagesEl.scrollTop = 999999; }, 3000);
-  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); render(); });
+  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
+  let galleryLoaded = false;
   subscribe((list) => {
     allMessages = list;
     // filter out report messages for display
@@ -2264,6 +2265,7 @@ function startChat() {
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
+    if (!galleryLoaded) return; // wait for gallery before first render
     // check if only reactions changed (same message count/ids)
     if (canPatchReactions(list)) {
       patchReactions();
@@ -2283,7 +2285,7 @@ function startChat() {
     if (!initialLoad) debouncedRender();
   });
   // subscribe to gallery
-  subscribeGallery((list) => { galleryItems = list; if (!initialLoad) debouncedRender(); });
+  subscribeGallery((list) => { galleryItems = list; if (!galleryLoaded) { galleryLoaded = true; render(); } else { debouncedRender(); } });
   // subscribe to notice
   let noticeInitialized = false;
   subscribeNotice((text) => {
