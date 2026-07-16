@@ -323,3 +323,10 @@ export async function getChannelPasscode(chId) {
   const { data } = await supabase.from("config").select("text").eq("id", passcodeId).single();
   return data?.text || null;
 }
+
+/* ---- Live mode (public read) ---- */
+export async function getLiveStatus(chId) {
+  const liveId = `live_${chId || "main"}`;
+  const { data } = await supabase.from("config").select("text").eq("id", liveId).single();
+  return data?.text === "true";
+}

@@ -2001,3 +2001,131 @@ emoji-picker {
   opacity: 0.8;
   transform: scale(0.9);
 }
+
+/* ---------- live mode ---------- */
+.chat-header.live-active {
+}
+.live-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.live-popup-content {
+  width: 100%;
+  max-width: 280px;
+  background: var(--bg);
+  border-radius: 20px;
+  padding: 28px 24px;
+  text-align: center;
+}
+.live-popup-icon {
+  margin-bottom: 12px;
+}
+.live-popup-title {
+  font-size: var(--bubble-font-size, 17px);
+  color: var(--gray-text);
+  margin-bottom: 8px;
+}
+.live-popup-desc {
+  font-size: calc(var(--bubble-font-size, 14px) - 2px);
+  color: var(--meta);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.live-popup-buttons {
+  display: flex;
+  gap: 10px;
+}
+.live-popup-no,
+.live-popup-yes {
+  flex: 1;
+  border: none;
+  border-radius: 12px;
+  padding: 11px;
+  font-size: var(--bubble-font-size, 14px);
+  cursor: pointer;
+  font-family: inherit;
+}
+.live-popup-no {
+  background: #f4f4f4;
+  color: #666;
+}
+.live-popup-yes {
+  background: #e74c3c;
+  color: #fff;
+}
+[data-theme="dark"] .live-popup-no {
+  background: #333;
+  color: #ccc;
+}
+
+/* ---------- live banner ---------- */
+.live-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #fff0f0;
+  border-top: .5px solid #ffcdd2;
+  border-bottom: .5px solid #ffcdd2;
+  flex-shrink: 0;
+}
+.live-banner-dot {
+  color: #e74c3c;
+  font-size: 10px;
+  animation: livePulse 1.5s infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.live-banner-text {
+  flex: 1;
+  font-size: var(--bubble-font-size, 13px);
+  color: #c62828;
+}
+.live-banner-join {
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 5px 12px;
+  font-size: var(--bubble-font-size, 13px);
+  cursor: pointer;
+  font-family: inherit;
+}
+[data-theme="dark"] .live-banner {
+  background: #2d1515;
+  border-bottom-color: #4a1c1c;
+}
+
+/* ---------- live exit banner ---------- */
+.live-exit-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #fff0f0;
+  border-top: .5px solid #ffcdd2;
+  border-bottom: .5px solid #ffcdd2;
+  flex-shrink: 0;
+}
+.live-exit-btn {
+  background: none;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: var(--bubble-font-size, 13px);
+  cursor: pointer;
+  font-family: inherit;
+}
+[data-theme="dark"] .live-exit-banner {
+  background: #2d1515;
+  border-bottom-color: #4a1c1c;
+}

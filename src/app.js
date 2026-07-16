@@ -9,13 +9,14 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, IS_MOCK } from "./backend/index.js";
-import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode } from "./admin/api.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, IS_MOCK } from "./backend/index.js";
+import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
+import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, removeLiveBanner } from "./modules/live.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
 
@@ -57,6 +58,8 @@ let galleryItems = [];           // gallery photos
 let initialLoad = true;          // force scroll to bottom for first 3 seconds
 let hasScrolledInitial = false;
 let userInteracted = false;
+let liveActive = localStorage.getItem(`liveActive_${new URLSearchParams(window.location.search).get("ch") || window.location.pathname.match(/^\/ch\/([^/]+)/)?.[1] || "main"}`) === "true";
+let inLiveMode = localStorage.getItem(`inLiveMode_${new URLSearchParams(window.location.search).get("ch") || window.location.pathname.match(/^\/ch\/([^/]+)/)?.[1] || "main"}`) === "true";
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
 /* debounced render — batches rapid updates (reactions, etc.) into one render */
@@ -865,6 +868,26 @@ function showPasscodeDialog(targetChannel, onSuccess) {
   setTimeout(() => input.focus(), 100);
 }
 
+/* ---- Initialize live mode module ---- */
+initLiveMode({
+  getState: () => ({ urlChannel, isAdmin, liveActive, inLiveMode, allMessages, messages, dmMessages, hasScrolledInitial, IS_MOCK }),
+  setState: (updates) => {
+    if ("inLiveMode" in updates) inLiveMode = updates.inLiveMode;
+    if ("liveActive" in updates) liveActive = updates.liveActive;
+    if ("allMessages" in updates) allMessages = updates.allMessages;
+    if ("messages" in updates) messages = updates.messages;
+    if ("hasScrolledInitial" in updates) hasScrolledInitial = updates.hasScrolledInitial;
+  },
+  subscribe,
+  setChannel,
+  render,
+  debouncedRender,
+  banner,
+  adminEndLive,
+  subscribeNotice,
+  onNotice: (text) => { currentNotice = text; renderNoticeBanner(); },
+});
+
 /* ---- Initialize search module ---- */
 initSearch();
 configureSearch({
@@ -1533,7 +1556,17 @@ function showAdminPlusMenu(e) {
 }
 
 function showNoticeInput() {
-  const title = prompt("공지 제목 (비우면 공지 삭제):");
+  // parse current notice for pre-fill
+  let currentTitle = "";
+  let currentBody = "";
+  if (currentNotice) {
+    try {
+      const parsed = JSON.parse(currentNotice);
+      if (parsed.title) { currentTitle = parsed.title; currentBody = parsed.body || ""; }
+    } catch { currentTitle = currentNotice; }
+  }
+
+  const title = prompt("공지 제목 (비우면 공지 삭제):", currentTitle);
   if (title === null) return; // cancelled
   if (!title.trim()) {
     // clear notice
@@ -1541,7 +1574,7 @@ function showNoticeInput() {
     banner("공지가 삭제되었습니다");
     return;
   }
-  const body = prompt("공지 내용 (선택사항, 빈칸이면 생략):");
+  const body = prompt("공지 내용 (선택사항, 빈칸이면 생략):", currentBody);
   if (body === null) return; // user cancelled
   const notice = body.trim()
     ? JSON.stringify({ title: title.trim(), body: body.trim() })
@@ -1561,8 +1594,9 @@ function setNoticeBanner(text) {
 function renderNoticeBanner() {
   document.querySelector(".notice-banner")?.remove();
   if (!currentNotice) return;
-  // don't show if user dismissed it
-  if (localStorage.getItem(`noticeDismissed_${urlChannel}`) === currentNotice) return;
+  const activeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  // in live mode, always show notice; in normal mode, check dismiss state
+  if (!inLiveMode && localStorage.getItem(`noticeDismissed_${activeChannel}`) === currentNotice) return;
 
   // parse notice: JSON with title/body or plain text (backward compat)
   let title = currentNotice;
@@ -1603,12 +1637,19 @@ function renderNoticeBanner() {
   }
 
   banner.querySelector(".notice-banner-close").addEventListener("click", () => {
-    localStorage.setItem(`noticeDismissed_${urlChannel}`, currentNotice);
+    const activeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+    localStorage.setItem(`noticeDismissed_${activeChannel}`, currentNotice);
     banner.remove();
   });
 
   // insert after header
-  document.querySelector(".chat-header").insertAdjacentElement("afterend", banner);
+  // insert after live banner if present, otherwise after header
+  const liveBannerEl = document.querySelector(".live-exit-banner") || document.querySelector(".live-banner");
+  if (liveBannerEl) {
+    liveBannerEl.insertAdjacentElement("afterend", banner);
+  } else {
+    document.querySelector(".chat-header").insertAdjacentElement("afterend", banner);
+  }
 }
 
 function showPlusMenu(e) {
@@ -1815,6 +1856,7 @@ function refilterMessages() {
         checkIfBlocked();
         refilterMessages();
         render();
+        if (inLiveMode) showLiveExitBanner();
         banner("관리자 모드 해제");
       } else {
         const pass = prompt("관리자 비밀번호:");
@@ -1829,6 +1871,7 @@ function refilterMessages() {
             refilterMessages();
             render();
             syncAdminColor();
+            if (inLiveMode) showLiveExitBanner();
             banner("관리자 모드 활성화");
           } else {
             banner("비밀번호가 틀렸습니다");
@@ -2018,6 +2061,10 @@ function showSettingsPanel() {
 }
 
 /* ============================================================
+   LIVE MODE — handled by ./modules/live.js
+   ============================================================ */
+
+/* ============================================================
    ADMIN PANEL — global admin settings
    ============================================================ */
 function showAdminPanel() {
@@ -2065,6 +2112,11 @@ function showAdminPanel() {
             <span class="admin-panel-label">차단 사용자</span>
             <span class="admin-panel-arrow">›</span>
           </button>
+          <button class="admin-panel-item admin-panel-live" data-action="live">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/></svg></span>
+            <span class="admin-panel-label">${liveActive ? "라이브 종료" : "라이브 시작"}</span>
+            <span class="admin-panel-arrow" style="color:${liveActive ? "#e74c3c" : ""}">●</span>
+          </button>
         </div>
       </div>
     </div>
@@ -2097,6 +2149,34 @@ function showAdminPanel() {
   panel.querySelector('[data-action="blocked"]').addEventListener("click", () => {
     panel.remove();
     showBlockedPanel();
+  });
+
+  // live mode toggle
+  panel.querySelector('[data-action="live"]').addEventListener("click", async () => {
+    panel.remove();
+    if (liveActive) {
+      // end live mode
+      if (!IS_MOCK) await adminEndLive(urlChannel);
+      liveActive = false;
+      localStorage.setItem(`liveActive_${urlChannel}`, "false");
+      localStorage.removeItem(`liveSeen_${urlChannel}`);
+      localStorage.removeItem(`liveTitle_${urlChannel}`);
+      // if admin is in live mode, switch back
+      if (inLiveMode) exitLiveMode();
+      banner("라이브가 종료되었습니다");
+    } else {
+      // start live mode
+      const liveTitle = prompt("라이브 제목:");
+      if (!liveTitle || !liveTitle.trim()) return;
+      if (!IS_MOCK) await adminStartLive(urlChannel);
+      liveActive = true;
+      localStorage.setItem(`liveActive_${urlChannel}`, "true");
+      localStorage.setItem(`liveTitle_${urlChannel}`, liveTitle.trim());
+      localStorage.removeItem(`liveSeen_${urlChannel}`);
+      // admin auto-joins
+      enterLiveMode();
+      banner("라이브가 시작되었습니다");
+    }
   });
 
   document.body.appendChild(panel);
@@ -2279,6 +2359,12 @@ function startChat() {
   if (started) return;
   started = true;
   checkIfBlocked();
+  // restore live mode if user was in it
+  if (inLiveMode && liveActive) {
+    setChannel(`${urlChannel}_live`);
+    document.querySelector(".chat-header").classList.add("live-active");
+    showLiveExitBanner();
+  }
   // messages container starts hidden via CSS; revealed after first scroll-to-bottom
   // force scroll to bottom for first 2 seconds while images load
   setTimeout(() => { initialLoad = false; }, 2000);
@@ -2355,6 +2441,25 @@ function startChat() {
   });
   toggleSend();
   renderNoticeBanner();
+
+  // subscribe to live mode state
+  if (!IS_MOCK) {
+    getLiveStatus(urlChannel).then(active => {
+      liveActive = active;
+      localStorage.setItem(`liveActive_${urlChannel}`, active ? "true" : "false");
+      if (active && !isAdmin && !inLiveMode) {
+        if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
+        else showLivePopup();
+      }
+      if (!active && inLiveMode) exitLiveMode();
+    });
+  } else {
+    // mock mode: check localStorage
+    if (liveActive && !isAdmin && !inLiveMode) {
+      if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
+      else showLivePopup();
+    }
+  }
 
   // load more messages when scrolling to top
   let loadingMore = false;

@@ -120,6 +120,26 @@ export default async function handler(req, res) {
         return res.json({ ok: true, admin: true });
       }
 
+      case "startLive": {
+        const { channelId } = payload;
+        const liveId = `live_${channelId || "main"}`;
+        const { error } = await supabase.from("config").upsert({ id: liveId, text: "true", channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return res.json({ ok: true });
+      }
+
+      case "endLive": {
+        const { channelId } = payload;
+        const liveId = `live_${channelId || "main"}`;
+        // set live to false
+        await supabase.from("config").upsert({ id: liveId, text: "false", channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        // delete all live messages
+        const liveChannelId = `${channelId || "main"}_live`;
+        await supabase.from("messages").delete().eq("channel_id", liveChannelId);
+        await supabase.from("gallery").delete().eq("channel_id", liveChannelId);
+        return res.json({ ok: true });
+      }
+
       default:
         return res.status(400).json({ error: "Unknown action" });
     }

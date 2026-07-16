@@ -86,3 +86,11 @@ export async function adminGetPasscode(channelId) {
     return data.hash || null;
   } catch { return null; }
 }
+
+export async function adminStartLive(channelId) {
+  return adminCall("startLive", { channelId });
+}
+
+export async function adminEndLive(channelId) {
+  return adminCall("endLive", { channelId });
+}
