@@ -40,4 +40,7 @@ export const loadMoreMessages   = impl.loadMoreMessages || (async () => []);
 export const setChannel         = impl.setChannel || (() => {});
 export const getChannelPasscode = impl.getChannelPasscode || (async () => null);
 export const getLiveStatus      = impl.getLiveStatus || (async () => false);
+export const initBroadcast      = impl.initBroadcast || (() => {});
+export const onEditBroadcast    = impl.onEditBroadcast || (() => () => {});
+export const broadcastEdit      = impl.broadcastEdit || (() => {});
 export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

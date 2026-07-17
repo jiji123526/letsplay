@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, initBroadcast, onEditBroadcast, broadcastEdit, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -1169,6 +1169,13 @@ async function doUnblock(uid) {
 }
 
 async function doEditMessage(id, newText) {
+  // optimistic update — re-render immediately
+  const msg = allMessages.find(m => m.id === id);
+  if (msg) { msg.text = newText; msg.edited = true; }
+  render();
+  // broadcast to other clients instantly
+  broadcastEdit(id, newText);
+  // sync to server (persistence)
   if (isAdmin && !IS_MOCK) await adminUpdateMessage(id, { text: newText, edited: true });
   else await editMessage(id, newText);
 }
@@ -2692,6 +2699,16 @@ function startChat() {
   });
   toggleSend();
   renderNoticeBanner();
+
+  // init broadcast channel for instant edits
+  if (!IS_MOCK) {
+    initBroadcast();
+    onEditBroadcast(({ id, text, edited }) => {
+      const msg = allMessages.find(m => m.id === id);
+      if (msg) { msg.text = text; msg.edited = edited; }
+      debouncedRender();
+    });
+  }
 
   // show "live ended" popup if user was kicked out by admin ending live
   if (localStorage.getItem(`liveEnded_${urlChannel}`)) {

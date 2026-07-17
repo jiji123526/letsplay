@@ -49,6 +49,35 @@ export function subscribe(cb) {
   return () => { supabase.removeChannel(channel); };
 }
 
+/* ---- Broadcast channel for instant updates ---- */
+let broadcastChannel = null;
+let editListeners = new Set();
+
+export function initBroadcast() {
+  if (broadcastChannel) supabase.removeChannel(broadcastChannel);
+  broadcastChannel = supabase
+    .channel(`broadcast-${channelId}`, { config: { broadcast: { self: false } } })
+    .on("broadcast", { event: "msg-edit" }, ({ payload }) => {
+      editListeners.forEach(cb => cb(payload));
+    })
+    .subscribe();
+}
+
+export function onEditBroadcast(cb) {
+  editListeners.add(cb);
+  return () => editListeners.delete(cb);
+}
+
+export function broadcastEdit(id, text) {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "msg-edit",
+      payload: { id, text, edited: true },
+    });
+  }
+}
+
 async function fetchMessages() {
   const { data } = await supabase
     .from("messages")
