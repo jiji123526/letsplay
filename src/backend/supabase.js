@@ -162,10 +162,6 @@ export async function editMessage(id, newText) {
   }
 }
 
-export async function markReported(id, reported) {
-  await supabase.from("messages").update({ reported: !!reported }).eq("id", id);
-}
-
 /* ---- Reactions ---- */
 export async function addReaction(id, emoji, uid) {
   const res = await fetch("/api/messages", {

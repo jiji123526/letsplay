@@ -112,14 +112,6 @@ export async function editMessage(mid, newText) {
   emit();
 }
 
-export async function markReported(mid, reported) {
-  const list = load();
-  const msg = list.find((m) => m.id === mid);
-  if (msg) { msg.reported = reported; }
-  save(list);
-  emit();
-}
-
 export async function addReaction(mid, emoji, uid) {
   const list = load();
   const msg = list.find((m) => m.id === mid);
