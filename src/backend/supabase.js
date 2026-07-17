@@ -96,21 +96,35 @@ function formatMessage(row) {
 }
 
 export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
-  const authUid = currentUser.id;
-  const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, channel_id: channelId, created_at: new Date().toISOString() };
-  if (fingerprint) row.fingerprint = fingerprint;
-  if (replyTo) row.reply_to = replyTo;
-  if (report) { row.report = true; row.reported_msg_id = reportedMsgId || null; }
+  // upload image first if present (direct to storage)
+  let imageUrl = null;
   if (image) {
-    const imageUrl = await uploadImage(image);
-    row.image = imageUrl;
+    imageUrl = await uploadImage(image);
   }
-  if (imageW) row.image_w = imageW;
-  if (imageH) row.image_h = imageH;
-  if (dm) row.dm = true;
-  if (galleryId) row.gallery_id = galleryId;
-  const { error } = await supabase.from("messages").insert(row);
-  if (error) throw error;
+
+  // route message through server API for validation
+  const res = await fetch("/api/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      uid,
+      nick,
+      text: text || "",
+      image: imageUrl || null,
+      is_admin: !!is_admin,
+      channel_id: channelId,
+      fingerprint: fingerprint || null,
+      reply_to: replyTo || null,
+      report: report || false,
+      reported_msg_id: reportedMsgId || null,
+      image_w: imageW || null,
+      image_h: imageH || null,
+      gallery_id: galleryId || null,
+      dm: dm || false,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "send failed");
 }
 
 export async function removeMessage(id) {
