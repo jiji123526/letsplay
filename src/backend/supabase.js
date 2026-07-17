@@ -132,11 +132,26 @@ export async function removeMessage(id) {
 }
 
 export async function softDeleteMessage(id) {
-  await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
+  const res = await fetch("/api/messages", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, uid: currentUser?.id || "", action: "soft-delete" }),
+  });
+  if (!res.ok) {
+    // fallback for admin (uses adminDeleteMessage separately)
+    await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
+  }
 }
 
 export async function editMessage(id, newText) {
-  await supabase.from("messages").update({ text: newText, edited: true }).eq("id", id);
+  const res = await fetch("/api/messages", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, uid: currentUser?.id || "", action: "edit", text: newText }),
+  });
+  if (!res.ok) {
+    await supabase.from("messages").update({ text: newText, edited: true }).eq("id", id);
+  }
 }
 
 export async function markReported(id, reported) {
@@ -204,13 +219,16 @@ export async function unblockUser(uid) {
 
 /* ---- DM ---- */
 export async function sendDm({ uid, nick, text, image, imageW, imageH }) {
-  const authUid = currentUser.id;
-  const row = { uid, auth_uid: authUid, nick, text, channel_id: channelId, created_at: new Date().toISOString() };
+  let imageUrl = null;
   if (image) {
-    const imageUrl = await uploadImage(image);
-    row.image = imageUrl;
+    imageUrl = await uploadImage(image);
   }
-  await supabase.from("dm").insert(row);
+  const res = await fetch("/api/dm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uid, nick, text, image: imageUrl, channel_id: channelId }),
+  });
+  if (!res.ok) throw new Error("DM send failed");
 }
 
 export async function removeDm(id) {
@@ -261,8 +279,13 @@ async function uploadImage(blob) {
 
 export async function saveToGallery(imageBlob) {
   const imageUrl = await uploadImage(imageBlob);
-  const { data, error } = await supabase.from("gallery").insert({ image: imageUrl, channel_id: channelId }).select("id").single();
-  if (error) throw error;
+  const res = await fetch("/api/gallery", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: imageUrl, channel_id: channelId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "gallery save failed");
   return data.id;
 }
 
@@ -289,12 +312,20 @@ async function fetchGallery() {
 }
 
 export async function removeFromGallery(id) {
-  const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
-  if (data && data.image) {
-    const path = data.image.split("/media/")[1];
-    if (path) await supabase.storage.from("media").remove([path]);
+  const res = await fetch("/api/gallery", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    // fallback direct delete
+    const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
+    if (data && data.image) {
+      const path = data.image.split("/media/")[1];
+      if (path) await supabase.storage.from("media").remove([path]);
+    }
+    await supabase.from("gallery").delete().eq("id", id);
   }
-  await supabase.from("gallery").delete().eq("id", id);
 }
 
 /* ---- Notice ---- */

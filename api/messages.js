@@ -84,6 +84,38 @@ export default async function handler(req, res) {
     // non-admin can only delete own messages
     const { data: msg } = await supabase
       .from("messages")
+      .select("uid, gallery_id")
+      .eq("id", id)
+      .single();
+
+    if (!msg) return res.status(404).json({ error: "not found" });
+    if (msg.uid !== uid) return res.status(403).json({ error: "not yours" });
+
+    // delete gallery item if exists
+    if (msg.gallery_id) {
+      const { data: gallery } = await supabase.from("gallery").select("image").eq("id", msg.gallery_id).single();
+      if (gallery && gallery.image) {
+        const path = gallery.image.split("/media/")[1];
+        if (path) await supabase.storage.from("media").remove([path]);
+      }
+      await supabase.from("gallery").delete().eq("id", msg.gallery_id);
+    }
+
+    const { error } = await supabase.from("messages").delete().eq("id", id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    return res.json({ ok: true });
+
+  } else if (req.method === "PATCH") {
+    const { id, uid, action, text } = req.body;
+
+    if (!id || !uid) {
+      return res.status(400).json({ error: "missing fields" });
+    }
+
+    // verify ownership
+    const { data: msg } = await supabase
+      .from("messages")
       .select("uid")
       .eq("id", id)
       .single();
@@ -91,8 +123,15 @@ export default async function handler(req, res) {
     if (!msg) return res.status(404).json({ error: "not found" });
     if (msg.uid !== uid) return res.status(403).json({ error: "not yours" });
 
-    const { error } = await supabase.from("messages").delete().eq("id", id);
-    if (error) return res.status(500).json({ error: error.message });
+    if (action === "soft-delete") {
+      const { error } = await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
+      if (error) return res.status(500).json({ error: error.message });
+    } else if (action === "edit") {
+      const { error } = await supabase.from("messages").update({ text: text || "", edited: true }).eq("id", id);
+      if (error) return res.status(500).json({ error: error.message });
+    } else {
+      return res.status(400).json({ error: "unknown action" });
+    }
 
     return res.json({ ok: true });
 
