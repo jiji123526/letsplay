@@ -1488,6 +1488,7 @@ async function send() {
     banner("채팅을 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해주세요.");
     return;
   }
+  const savedText = input.value;
   input.value = "";
   input.style.height = "auto";
   toggleSend();
@@ -1528,6 +1529,11 @@ async function send() {
   }
   catch (e) {
     console.error("send failed", e);
+    // restore text on failure
+    input.value = savedText;
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 80) + "px";
+    toggleSend();
     if (e.message === "banned") banner("차단되어 전송할 수 없습니다");
     else if (e.message === "rate_limited") banner("너무 빠르게 보내고 있습니다");
     else if (e.message === "banned_word") banner("금지어가 포함되어 전송할 수 없습니다");
