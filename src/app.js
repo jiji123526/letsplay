@@ -1251,6 +1251,13 @@ function getActions(msg, isMe) {
       const target = msg.replyTo ? messages.find((m) => m.id === msg.replyTo) || msg : msg;
       setReply(target);
     }});
+    if (msg.text && !msg.galleryId) {
+      actions.push({ label: "수정", icon: ICONS.edit, danger: false, handler: () => {
+        showEditDialog(msg.text, (newText) => {
+          if (newText.trim()) doEditMessage(msg.id, newText.trim());
+        });
+      }});
+    }
     actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
       const hasReplies = allMessages.some((r) => r.replyTo === msg.id);
       // delete gallery photo if message has one
