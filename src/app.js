@@ -1526,7 +1526,13 @@ async function send() {
     sendTimestamps.push(Date.now());
     input.blur(); // dismiss keyboard
   }
-  catch (e) { console.error("send failed", e); banner("전송 실패"); }
+  catch (e) {
+    console.error("send failed", e);
+    if (e.message === "banned") banner("차단되어 전송할 수 없습니다");
+    else if (e.message === "rate_limited") banner("너무 빠르게 보내고 있습니다");
+    else if (e.message === "banned_word") banner("금지어가 포함되어 전송할 수 없습니다");
+    else banner("전송 실패");
+  }
 }
 
 input.addEventListener("input", () => {
@@ -2196,6 +2202,11 @@ function showAdminPanel() {
             <span class="admin-panel-label">채널 비밀번호</span>
             <span class="admin-panel-arrow">›</span>
           </button>
+          <button class="admin-panel-item" data-action="banned-words">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18.36 5.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></span>
+            <span class="admin-panel-label">금지어</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
           <button class="admin-panel-item" data-action="blocked">
             <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg></span>
             <span class="admin-panel-label">차단 사용자</span>
@@ -2238,6 +2249,12 @@ function showAdminPanel() {
   panel.querySelector('[data-action="blocked"]').addEventListener("click", () => {
     panel.remove();
     showBlockedPanel();
+  });
+
+  // banned words
+  panel.querySelector('[data-action="banned-words"]').addEventListener("click", () => {
+    panel.remove();
+    showBannedWordsPanel();
   });
 
   // live mode toggle
@@ -2390,6 +2407,132 @@ function showAdminPasscodePanel() {
 
   document.body.appendChild(panel);
   input.focus();
+}
+
+function showBannedWordsPanel() {
+  document.querySelector(".banned-words-panel")?.remove();
+
+  const activeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  // load words as JSON array: [{ word, expires }]
+  let words = [];
+  try {
+    const raw = localStorage.getItem(`bannedWords_${activeChannel}`) || "";
+    if (raw.startsWith("[")) {
+      words = JSON.parse(raw);
+    } else if (raw) {
+      // migrate from old comma-separated format
+      words = raw.split(",").map(w => ({ word: w.trim(), expires: null })).filter(w => w.word);
+    }
+  } catch { words = []; }
+
+  // filter out expired words
+  const now = Date.now();
+  words = words.filter(w => !w.expires || new Date(w.expires).getTime() > now);
+
+  const panel = document.createElement("div");
+  panel.className = "banned-words-panel";
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>금지어</h3>
+        <button class="banned-words-close">✕</button>
+      </div>
+      <div class="admin-panel-body" style="padding:20px 18px;">
+        <div class="banned-words-list" id="bannedWordsList"></div>
+        <div class="banned-words-add">
+          <input class="banned-words-input" type="text" placeholder="금지어 추가..." />
+          <select class="banned-words-duration">
+            <option value="">영구</option>
+            <option value="1">1일</option>
+            <option value="7">7일</option>
+            <option value="30">30일</option>
+          </select>
+          <button class="banned-words-add-btn">+</button>
+        </div>
+        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+      </div>
+    </div>
+  `;
+
+  const listEl = panel.querySelector("#bannedWordsList");
+  const inputEl = panel.querySelector(".banned-words-input");
+  const durationEl = panel.querySelector(".banned-words-duration");
+  const resultEl = panel.querySelector(".admin-passcode-result");
+
+  function formatExpiry(expires) {
+    if (!expires) return "영구";
+    const diff = new Date(expires).getTime() - Date.now();
+    if (diff <= 0) return "만료됨";
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return `${days}일 남음`;
+  }
+
+  function renderWords() {
+    listEl.innerHTML = words.length === 0
+      ? '<div style="color:var(--meta);font-size:var(--bubble-font-size, 13px);text-align:center;padding:12px 0;">등록된 금지어가 없습니다</div>'
+      : words.map((w, i) => `
+        <div class="banned-word-item">
+          <span class="banned-word-text">${w.word}</span>
+          <span class="banned-word-expiry">${formatExpiry(w.expires)}</span>
+          <button class="banned-word-remove" data-idx="${i}">✕</button>
+        </div>
+      `).join("");
+  }
+  renderWords();
+
+  // remove a word
+  listEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".banned-word-remove");
+    if (btn) {
+      words.splice(parseInt(btn.dataset.idx), 1);
+      renderWords();
+      saveWords();
+    }
+  });
+
+  // add a word
+  function addWord() {
+    const word = inputEl.value.trim();
+    if (!word || words.find(w => w.word === word)) { inputEl.value = ""; return; }
+    const days = durationEl.value ? parseInt(durationEl.value) : null;
+    const expires = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
+    words.push({ word, expires });
+    inputEl.value = "";
+    renderWords();
+    saveWords();
+  }
+
+  panel.querySelector(".banned-words-add-btn").addEventListener("click", addWord);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); addWord(); }
+  });
+
+  async function saveWords() {
+    const wordsJson = JSON.stringify(words);
+    localStorage.setItem(`bannedWords_${activeChannel}`, wordsJson);
+    if (!IS_MOCK) {
+      try {
+        await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "",
+            action: "setBannedWords",
+            payload: { channelId: activeChannel, words: wordsJson }
+          }),
+        });
+      } catch {}
+    }
+    resultEl.textContent = "✓ 저장됨";
+    resultEl.style.display = "block";
+    setTimeout(() => { resultEl.style.display = "none"; }, 1500);
+  }
+
+  panel.querySelector(".banned-words-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
+
+  document.body.appendChild(panel);
+  inputEl.focus();
 }
 
 function showBlockedPanel() {

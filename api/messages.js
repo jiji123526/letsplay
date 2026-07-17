@@ -42,8 +42,31 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: "rate_limited" });
     }
 
-    // banned words check (fetch from settings)
-    // TODO: could fetch banned_words from config table if needed
+    // banned words check
+    if (!is_admin && text) {
+      const wordId = `bannedWords_${channel_id}`;
+      const { data: wordData } = await supabase.from("config").select("text").eq("id", wordId).single();
+      if (wordData && wordData.text) {
+        let bannedWords = [];
+        try {
+          if (wordData.text.startsWith("[")) {
+            // JSON format with expiry
+            const parsed = JSON.parse(wordData.text);
+            const now = Date.now();
+            bannedWords = parsed
+              .filter(w => !w.expires || new Date(w.expires).getTime() > now)
+              .map(w => w.word);
+          } else {
+            // legacy comma-separated format
+            bannedWords = wordData.text.split(",").map(w => w.trim()).filter(Boolean);
+          }
+        } catch { bannedWords = []; }
+        const found = bannedWords.find(w => text.includes(w));
+        if (found) {
+          return res.status(403).json({ error: "banned_word", word: found });
+        }
+      }
+    }
 
     // record timestamp for rate limiting
     const timestamps = rateLimits.get(uid) || [];

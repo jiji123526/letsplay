@@ -78,7 +78,7 @@ body {
 }
 .hdr-btn {
   background: none; border: none; padding: 0;
-  color: var(--tint);
+  color: var(--bubble-sent, #3b8df0);
   display: flex; align-items: center; cursor: pointer;
 }
 .hdr-btn svg {
@@ -1864,7 +1864,8 @@ emoji-picker {
 /* ---------- admin panel ---------- */
 .admin-panel,
 .admin-color-panel,
-.admin-passcode-panel {
+.admin-passcode-panel,
+.banned-words-panel {
   position: fixed;
   inset: 0;
   z-index: 90;
@@ -1899,7 +1900,8 @@ emoji-picker {
 }
 .admin-panel-close,
 .admin-color-close,
-.admin-passcode-close {
+.admin-passcode-close,
+.banned-words-close {
   background: none;
   border: none;
   cursor: pointer;
@@ -2244,4 +2246,104 @@ emoji-picker {
 }
 [data-theme="dark"] .img-placeholder {
   background: #2a2a2a;
+}
+
+/* ---------- banned words list ---------- */
+.banned-words-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.banned-word-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f4f4f4;
+  border-radius: 10px;
+}
+.banned-word-text {
+  font-size: var(--bubble-font-size, 14px);
+  color: var(--gray-text);
+}
+.banned-word-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #e74c3c;
+  font-size: var(--bubble-font-size, 14px);
+  padding: 0 4px;
+  line-height: 1;
+}
+.banned-words-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.banned-words-input {
+  flex: 1;
+  min-width: 0;
+  background: #f4f4f4;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: var(--bubble-font-size, 14px);
+  font-family: inherit;
+  color: var(--gray-text);
+}
+.banned-words-input:focus {
+  outline: none;
+  border-color: var(--bubble-sent, #3b8df0);
+}
+.banned-words-add-btn {
+  width: calc(var(--bubble-font-size, 17px) + 19px);
+  height: calc(var(--bubble-font-size, 17px) + 19px);
+  border-radius: 50%;
+  border: none;
+  background: var(--bubble-sent, #3b8df0);
+  color: #fff;
+  font-size: var(--bubble-font-size, 17px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+[data-theme="dark"] .banned-word-item {
+  background: #2a2a2a;
+}
+[data-theme="dark"] .banned-words-input {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+.banned-words-duration {
+  background: #f4f4f4;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: calc(var(--bubble-font-size, 14px) - 2px);
+  font-family: inherit;
+  color: var(--gray-text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.banned-words-duration:focus {
+  outline: none;
+  border-color: var(--bubble-sent, #3b8df0);
+}
+.banned-word-expiry {
+  font-size: calc(var(--bubble-font-size, 14px) - 3px);
+  color: var(--meta);
+  margin-left: auto;
+  margin-right: 8px;
+}
+[data-theme="dark"] .banned-words-duration {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
 }

@@ -142,6 +142,21 @@ export default async function handler(req, res) {
         return res.json({ ok: true });
       }
 
+      case "setBannedWords": {
+        const { channelId, words } = payload;
+        const wordId = `bannedWords_${channelId || "main"}`;
+        const { error } = await supabase.from("config").upsert({ id: wordId, text: words || "", channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return res.json({ ok: true });
+      }
+
+      case "getBannedWords": {
+        const { channelId } = payload;
+        const wordId = `bannedWords_${channelId || "main"}`;
+        const { data } = await supabase.from("config").select("text").eq("id", wordId).single();
+        return res.json({ ok: true, words: data?.text || "" });
+      }
+
       default:
         return res.status(400).json({ error: "Unknown action" });
     }
