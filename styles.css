@@ -535,7 +535,7 @@ body {
 
 /* ---------- edited message tag ---------- */
 .edited-tag {
-  font-size: 11px;
+  font-size: calc(var(--bubble-font-size, 17px) - 6px);
   opacity: 0.6;
   font-style: italic;
 }
