@@ -449,6 +449,31 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           img.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
           img.style.width = "100%";
         }
+        // handle load failure with tap-to-retry
+        img.addEventListener("error", () => {
+          imgWrap.classList.add("img-failed");
+          imgWrap.innerHTML = `<div class="img-placeholder">탭하여 다시 시도</div>`;
+          if (m.imageW && m.imageH) {
+            imgWrap.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
+          }
+          imgWrap.addEventListener("click", () => {
+            imgWrap.classList.remove("img-failed");
+            imgWrap.innerHTML = "";
+            const retryImg = document.createElement("img");
+            retryImg.className = "bubble-img";
+            retryImg.src = imageSrc;
+            retryImg.alt = "photo";
+            if (m.imageW && m.imageH) {
+              retryImg.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
+              retryImg.style.width = "100%";
+            }
+            retryImg.addEventListener("error", () => {
+              imgWrap.classList.add("img-failed");
+              imgWrap.innerHTML = `<div class="img-placeholder">이미지를 불러올 수 없습니다</div>`;
+            });
+            imgWrap.appendChild(retryImg);
+          }, { once: true });
+        });
         const expandBtn = document.createElement("button");
         expandBtn.className = "bubble-img-expand";
         expandBtn.textContent = "⤢";

@@ -2226,3 +2226,22 @@ emoji-picker {
   border-color: #444;
   color: #fff;
 }
+
+/* ---------- image load failure ---------- */
+.bubble-img-wrap.img-failed {
+  cursor: pointer;
+}
+.img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  padding: 0 16px;
+  background: #f0f0f0;
+  border-radius: 12px;
+  font-size: calc(var(--bubble-font-size, 14px) - 3px);
+  color: var(--meta);
+}
+[data-theme="dark"] .img-placeholder {
+  background: #2a2a2a;
+}
