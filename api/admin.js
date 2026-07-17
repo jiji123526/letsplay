@@ -6,15 +6,45 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// Rate limit: max 10 failed attempts per IP per hour
+const failedAttempts = new Map();
+const MAX_ATTEMPTS = 10;
+const WINDOW = 60 * 60 * 1000; // 1 hour
+
+function getClientIp(req) {
+  return req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.headers["x-real-ip"] || "unknown";
+}
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const attempts = failedAttempts.get(ip) || [];
+  const recent = attempts.filter(t => now - t < WINDOW);
+  failedAttempts.set(ip, recent);
+  return recent.length >= MAX_ATTEMPTS;
+}
+
+function recordFailedAttempt(ip) {
+  const attempts = failedAttempts.get(ip) || [];
+  attempts.push(Date.now());
+  failedAttempts.set(ip, attempts);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
   }
 
   const { passcode, action, payload } = req.body;
+  const clientIp = getClientIp(req);
+
+  // rate limit check
+  if (isRateLimited(clientIp)) {
+    return res.status(429).json({ error: "그만해라" });
+  }
 
   // verify admin passcode
   if (passcode !== process.env.ADMIN_PASSCODE) {
+    recordFailedAttempt(clientIp);
     return res.status(403).json({ error: "Invalid passcode" });
   }
 

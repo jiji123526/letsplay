@@ -1963,7 +1963,7 @@ function refilterMessages() {
         const pass = prompt("관리자 비밀번호:");
         if (pass) {
           const valid = IS_MOCK ? true : await verifyAdmin(pass);
-          if (valid) {
+          if (valid === true) {
             setAdminPasscode(pass);
             isAdmin = true;
             localStorage.setItem("isAdmin", "true");
@@ -1974,8 +1974,10 @@ function refilterMessages() {
             syncAdminColor();
             if (inLiveMode) showLiveExitBanner();
             banner("관리자 모드 활성화");
+          } else if (valid === "rate_limited") {
+            banner("그만해라");
           } else {
-            banner("비밀번호가 틀렸습니다");
+            banner("나이스시도 ㅋ");
           }
         }
       }

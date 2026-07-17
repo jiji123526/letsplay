@@ -30,6 +30,7 @@ export async function verifyAdmin(passcode) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ passcode, action: "verifyAdmin", payload: {} }),
   });
+  if (res.status === 429) return "rate_limited";
   return res.ok;
 }
 
