@@ -460,9 +460,13 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         imgWrap.appendChild(expandBtn);
         bubble.appendChild(imgWrap);
       } else {
-        // gallery item was deleted
-        bubble.textContent = "삭제된 사진입니다";
-        bubble.classList.add("deleted");
+        // gallery item was deleted — show caption if exists, otherwise placeholder
+        if (m.text) {
+          bubble.textContent = m.text;
+        } else {
+          bubble.textContent = "삭제된 사진입니다";
+          bubble.classList.add("deleted");
+        }
       }
       if (m.text) {
         const caption = document.createElement("div");
