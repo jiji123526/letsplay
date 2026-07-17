@@ -128,7 +128,15 @@ export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, 
 }
 
 export async function removeMessage(id) {
-  await supabase.from("messages").delete().eq("id", id);
+  const res = await fetch("/api/messages", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, uid: currentUser?.id || "", channel_id: channelId }),
+  });
+  if (!res.ok) {
+    // fallback direct (mock mode or admin)
+    await supabase.from("messages").delete().eq("id", id);
+  }
 }
 
 export async function softDeleteMessage(id) {
