@@ -36,6 +36,7 @@ export function enterLiveMode() {
     _ctx.subscribeNotice(_ctx.onNotice);
   }
   showLiveExitBanner();
+  showEmojiBar();
 }
 
 export function showLiveExitBanner() {
@@ -152,3 +153,119 @@ export function showLiveEndedPopup() {
 
   document.body.appendChild(popup);
 }
+
+
+/* ============================================================
+   Emoji Effects — live mode only
+   ============================================================ */
+const PRESET_EMOJIS = ["🍋", "🔥", "❤️", "😂", "👏", "🎉"];
+
+export function showEmojiBar() {
+  removeEmojiBar();
+  requestAnimationFrame(() => {
+    const inputWrap = document.querySelector(".input-wrap");
+    if (!inputWrap || document.querySelector(".emoji-fx-trigger")) return;
+    
+    const trigger = document.createElement("button");
+    trigger.className = "emoji-fx-trigger";
+    trigger.textContent = "🎉";
+    trigger.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleEmojiGrid();
+    });
+    // insert before the send button
+    const sendBtn = inputWrap.querySelector("#sendBtn");
+    if (sendBtn) sendBtn.insertAdjacentElement("beforebegin", trigger);
+    else inputWrap.appendChild(trigger);
+  });
+}
+
+function removeEmojiBar() {
+  document.querySelector(".emoji-fx-trigger")?.remove();
+  document.querySelector(".emoji-fx-grid")?.remove();
+  document.querySelector(".emoji-fx-picker-wrap")?.remove();
+}
+
+function toggleEmojiGrid() {
+  const existing = document.querySelector(".emoji-fx-grid");
+  if (existing) { existing.remove(); return; }
+
+  const grid = document.createElement("div");
+  grid.className = "emoji-fx-grid";
+  grid.innerHTML = `
+    <div class="emoji-fx-grid-inner">
+      ${PRESET_EMOJIS.map(e => `<button class="emoji-fx-btn">${e}</button>`).join("")}
+      <button class="emoji-fx-btn emoji-fx-more">+</button>
+    </div>
+  `;
+
+  grid.querySelectorAll(".emoji-fx-btn:not(.emoji-fx-more)").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      triggerEmoji(btn.textContent);
+    });
+  });
+
+  grid.querySelector(".emoji-fx-more").addEventListener("click", (e) => {
+    e.stopPropagation();
+    grid.remove();
+    toggleFullEmojiPicker();
+  });
+
+  // close on outside click
+  function closeGrid(e) {
+    if (!grid.contains(e.target) && !e.target.closest(".emoji-fx-trigger")) {
+      grid.remove();
+      document.removeEventListener("click", closeGrid);
+    }
+  }
+  setTimeout(() => document.addEventListener("click", closeGrid), 10);
+
+  document.body.appendChild(grid);
+}
+
+function toggleFullEmojiPicker() {
+  const existing = document.querySelector(".emoji-fx-picker-wrap");
+  if (existing) { existing.remove(); return; }
+
+  const wrap = document.createElement("div");
+  wrap.className = "emoji-fx-picker-wrap";
+  const picker = document.createElement("emoji-picker");
+  wrap.appendChild(picker);
+
+  picker.addEventListener("emoji-click", (e) => {
+    triggerEmoji(e.detail.unicode);
+  });
+
+  function outsideClick(e) {
+    if (!wrap.contains(e.target) && !e.target.closest(".emoji-fx-trigger")) {
+      wrap.remove();
+      document.removeEventListener("click", outsideClick);
+    }
+  }
+  setTimeout(() => document.addEventListener("click", outsideClick), 10);
+
+  document.body.appendChild(wrap);
+}
+
+function triggerEmoji(emoji) {
+  const x = 30 + Math.random() * 40;
+  const h = 65 + Math.random() * 25;
+  spawnEmoji(emoji, x, h);
+  if (_ctx.broadcastEmoji) _ctx.broadcastEmoji(emoji, x, h);
+}
+
+export function spawnEmoji(emoji, x, h) {
+  const id = `efx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+  const el = document.createElement("div");
+  el.className = "emoji-fx";
+  el.textContent = emoji;
+  el.style.left = `${x}%`;
+  el.style.setProperty("--fly-h", `${h}vh`);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+
+// also export removeEmojiBar for exitLiveMode
+export { removeEmojiBar };

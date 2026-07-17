@@ -42,5 +42,7 @@ export const getChannelPasscode = impl.getChannelPasscode || (async () => null);
 export const getLiveStatus      = impl.getLiveStatus || (async () => false);
 export const initBroadcast      = impl.initBroadcast || (() => {});
 export const onEditBroadcast    = impl.onEditBroadcast || (() => () => {});
+export const onEmojiBroadcast   = impl.onEmojiBroadcast || (() => () => {});
 export const broadcastEdit      = impl.broadcastEdit || (() => {});
+export const broadcastEmoji     = impl.broadcastEmoji || (() => {});
 export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

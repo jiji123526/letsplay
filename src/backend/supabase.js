@@ -52,6 +52,7 @@ export function subscribe(cb) {
 /* ---- Broadcast channel for instant updates ---- */
 let broadcastChannel = null;
 let editListeners = new Set();
+let emojiListeners = new Set();
 
 export function initBroadcast() {
   if (broadcastChannel) supabase.removeChannel(broadcastChannel);
@@ -59,6 +60,9 @@ export function initBroadcast() {
     .channel(`broadcast-${channelId}`, { config: { broadcast: { self: false } } })
     .on("broadcast", { event: "msg-edit" }, ({ payload }) => {
       editListeners.forEach(cb => cb(payload));
+    })
+    .on("broadcast", { event: "emoji-fx" }, ({ payload }) => {
+      emojiListeners.forEach(cb => cb(payload));
     })
     .subscribe();
 }
@@ -68,12 +72,27 @@ export function onEditBroadcast(cb) {
   return () => editListeners.delete(cb);
 }
 
+export function onEmojiBroadcast(cb) {
+  emojiListeners.add(cb);
+  return () => emojiListeners.delete(cb);
+}
+
 export function broadcastEdit(id, text) {
   if (broadcastChannel) {
     broadcastChannel.send({
       type: "broadcast",
       event: "msg-edit",
       payload: { id, text, edited: true },
+    });
+  }
+}
+
+export function broadcastEmoji(emoji, x, h) {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "emoji-fx",
+      payload: { emoji, x, h },
     });
   }
 }

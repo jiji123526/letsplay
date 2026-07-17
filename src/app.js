@@ -9,14 +9,14 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, initBroadcast, onEditBroadcast, broadcastEdit, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
-import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner } from "./modules/live.js";
+import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner, spawnEmoji, removeEmojiBar, showEmojiBar } from "./modules/live.js";
 import { generateFingerprint } from "./modules/fingerprint.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
@@ -949,6 +949,7 @@ initLiveMode({
   adminEndLive,
   subscribeNotice,
   onNotice: (text) => { currentNotice = text; renderNoticeBanner(); },
+  broadcastEmoji,
 });
 
 /* ---- Initialize search module ---- */
@@ -2622,6 +2623,7 @@ function startChat() {
     setChannel(`${urlChannel}_live`);
     document.querySelector(".chat-header").classList.add("live-active");
     showLiveExitBanner();
+    showEmojiBar();
   }
   // messages container starts hidden via CSS; revealed after first scroll-to-bottom
   // force scroll to bottom for first 2 seconds while images load
@@ -2700,13 +2702,16 @@ function startChat() {
   toggleSend();
   renderNoticeBanner();
 
-  // init broadcast channel for instant edits
+  // init broadcast channel for instant edits + emoji effects
   if (!IS_MOCK) {
     initBroadcast();
     onEditBroadcast(({ id, text, edited }) => {
       const msg = allMessages.find(m => m.id === id);
       if (msg) { msg.text = text; msg.edited = edited; }
       debouncedRender();
+    });
+    onEmojiBroadcast(({ emoji, x, h }) => {
+      spawnEmoji(emoji, x, h);
     });
   }
 
