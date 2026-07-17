@@ -52,14 +52,15 @@ export function showLiveExitBanner() {
   `;
   bannerEl.querySelector(".live-exit-btn").addEventListener("click", async () => {
     if (isAdmin) {
-      if (!confirm("라이브를 종료하시겠습니까?")) return;
-      if (!IS_MOCK) await _ctx.adminEndLive(urlChannel);
-      _ctx.setState({ liveActive: false });
-      localStorage.setItem(`liveActive_${urlChannel}`, "false");
-      localStorage.removeItem(`liveSeen_${urlChannel}`);
-      localStorage.removeItem(`mock_notice_${urlChannel}_live`);
-      localStorage.setItem(`liveEnded_${urlChannel}`, "true");
-      exitLiveMode();
+      _ctx.showConfirmDialog("라이브 종료", "라이브를 종료하시겠습니까?<br>모든 메시지가 삭제됩니다.", async () => {
+        if (!IS_MOCK) await _ctx.adminEndLive(urlChannel);
+        _ctx.setState({ liveActive: false });
+        localStorage.setItem(`liveActive_${urlChannel}`, "false");
+        localStorage.removeItem(`liveSeen_${urlChannel}`);
+        localStorage.removeItem(`mock_notice_${urlChannel}_live`);
+        localStorage.setItem(`liveEnded_${urlChannel}`, "true");
+        exitLiveMode();
+      });
     } else {
       exitLiveMode();
     }
@@ -160,6 +161,28 @@ export function showLiveEndedPopup() {
    ============================================================ */
 const PRESET_EMOJIS = ["🍋", "🔥", "❤️", "😂", "👏", "🎉"];
 
+function getPresetEmojis() {
+  const { urlChannel } = _ctx.getState();
+  const activeChannel = `${urlChannel}_live`;
+  try {
+    const stored = localStorage.getItem(`liveEmojis_${activeChannel}`);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return PRESET_EMOJIS;
+}
+
+export function updateEmojiBarPresets(emojis) {
+  // update trigger to show first emoji
+  const trigger = document.querySelector(".emoji-fx-trigger");
+  if (trigger && emojis.length > 0) trigger.textContent = emojis[0];
+  // re-render the emoji grid if it's open
+  const grid = document.querySelector(".emoji-fx-grid");
+  if (grid) {
+    grid.remove();
+    toggleEmojiGrid();
+  }
+}
+
 export function showEmojiBar() {
   removeEmojiBar();
   requestAnimationFrame(() => {
@@ -168,7 +191,7 @@ export function showEmojiBar() {
     
     const trigger = document.createElement("button");
     trigger.className = "emoji-fx-trigger";
-    trigger.textContent = "🎉";
+    trigger.textContent = getPresetEmojis()[0] || "🎉";
     trigger.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -195,7 +218,7 @@ function toggleEmojiGrid() {
   grid.className = "emoji-fx-grid";
   grid.innerHTML = `
     <div class="emoji-fx-grid-inner">
-      ${PRESET_EMOJIS.map(e => `<button class="emoji-fx-btn">${e}</button>`).join("")}
+      ${getPresetEmojis().map(e => `<button class="emoji-fx-btn">${e}</button>`).join("")}
       <button class="emoji-fx-btn emoji-fx-more">+</button>
     </div>
   `;

@@ -16,7 +16,7 @@ import { compressImage, getImageDimensions, showFullImage as showFullImageBase }
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
-import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner, spawnEmoji, removeEmojiBar, showEmojiBar } from "./modules/live.js";
+import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner, spawnEmoji, removeEmojiBar, showEmojiBar, updateEmojiBarPresets } from "./modules/live.js";
 import { generateFingerprint } from "./modules/fingerprint.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
@@ -841,6 +841,49 @@ function showChannelPicker() {
   document.body.appendChild(overlay);
 }
 
+function showConfirmDialog(title, message, onConfirm) {
+  const dialog = document.createElement("div");
+  dialog.className = "confirm-dialog";
+  dialog.innerHTML = `
+    <div class="edit-dialog-content">
+      <div class="edit-dialog-title">${title}</div>
+      <div style="font-size:var(--bubble-font-size, 14px);color:var(--meta);margin-bottom:16px;line-height:1.5;">${message}</div>
+      <div class="edit-dialog-buttons">
+        <button class="edit-dialog-cancel">취소</button>
+        <button class="edit-dialog-save">확인</button>
+      </div>
+    </div>
+  `;
+  dialog.querySelector(".edit-dialog-save").addEventListener("click", () => { dialog.remove(); onConfirm(); });
+  dialog.querySelector(".edit-dialog-cancel").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.remove(); });
+  document.body.appendChild(dialog);
+}
+
+function showPromptDialog(title, placeholder, onSubmit) {
+  const dialog = document.createElement("div");
+  dialog.className = "confirm-dialog";
+  dialog.innerHTML = `
+    <div class="edit-dialog-content">
+      <div class="edit-dialog-title">${title}</div>
+      <input class="notice-edit-title" type="text" placeholder="${placeholder}" />
+      <div class="edit-dialog-buttons">
+        <button class="edit-dialog-cancel">취소</button>
+        <button class="edit-dialog-save">확인</button>
+      </div>
+    </div>
+  `;
+  const input = dialog.querySelector("input");
+  dialog.querySelector(".edit-dialog-save").addEventListener("click", () => {
+    const val = input.value.trim();
+    if (val) { dialog.remove(); onSubmit(val); }
+  });
+  dialog.querySelector(".edit-dialog-cancel").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.remove(); });
+  document.body.appendChild(dialog);
+  input.focus();
+}
+
 function showEditDialog(currentText, onSave) {
   document.querySelector(".edit-dialog")?.remove();
 
@@ -950,6 +993,7 @@ initLiveMode({
   subscribeNotice,
   onNotice: (text) => { currentNotice = text; renderNoticeBanner(); },
   broadcastEmoji,
+  showConfirmDialog,
 });
 
 /* ---- Initialize search module ---- */
@@ -1631,10 +1675,12 @@ function showAdminPlusMenu(e) {
   menu.innerHTML = `
     <button class="plus-menu-item" data-action="photo"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg> 사진 보내기</button>
     <button class="plus-menu-item" data-action="notice"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> 공지 등록</button>
+    ${inLiveMode ? '<button class="plus-menu-item" data-action="emoji-preset"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg> 이모지 프리셋</button>' : ''}
   `;
 
   menu.querySelector('[data-action="photo"]').addEventListener("click", () => { menu.remove(); photoInput.click(); });
   menu.querySelector('[data-action="notice"]').addEventListener("click", () => { menu.remove(); showNoticeInput(); });
+  if (inLiveMode) menu.querySelector('[data-action="emoji-preset"]')?.addEventListener("click", () => { menu.remove(); showEmojiPresetPanel(); });
 
   const rect = photoBtn.getBoundingClientRect();
   menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
@@ -2240,6 +2286,7 @@ function showAdminPanel() {
             <span class="admin-panel-label">${liveActive ? "라이브 종료" : "라이브 시작"}</span>
             <span class="admin-panel-arrow" style="color:${liveActive ? "#e74c3c" : ""}">●</span>
           </button>
+          ${liveActive ? `` : ""}
         </div>
       </div>
     </div>
@@ -2285,32 +2332,178 @@ function showAdminPanel() {
     panel.remove();
     if (liveActive) {
       // end live mode
-      if (!confirm("라이브를 종료하시겠습니까?")) return;
-      if (!IS_MOCK) await adminEndLive(urlChannel);
-      liveActive = false;
-      localStorage.setItem(`liveActive_${urlChannel}`, "false");
-      localStorage.removeItem(`liveSeen_${urlChannel}`);
-      localStorage.removeItem(`liveTitle_${urlChannel}`);
-      localStorage.removeItem(`mock_notice_${urlChannel}_live`);
-      // if admin is in live mode, switch back
-      if (inLiveMode) {
-        localStorage.setItem(`liveEnded_${urlChannel}`, "true");
-        exitLiveMode();
-      }
+      showConfirmDialog("라이브 종료", "라이브를 종료하시겠습니까?<br>모든 메시지가 삭제됩니다.", async () => {
+        if (!IS_MOCK) await adminEndLive(urlChannel);
+        liveActive = false;
+        localStorage.setItem(`liveActive_${urlChannel}`, "false");
+        localStorage.removeItem(`liveSeen_${urlChannel}`);
+        localStorage.removeItem(`liveTitle_${urlChannel}`);
+        localStorage.removeItem(`mock_notice_${urlChannel}_live`);
+        if (inLiveMode) {
+          localStorage.setItem(`liveEnded_${urlChannel}`, "true");
+          exitLiveMode();
+        }
+      });
     } else {
       // start live mode
-      const liveTitle = prompt("라이브 제목:");
-      if (!liveTitle || !liveTitle.trim()) return;
-      if (!IS_MOCK) await adminStartLive(urlChannel);
-      liveActive = true;
-      localStorage.setItem(`liveActive_${urlChannel}`, "true");
-      localStorage.setItem(`liveTitle_${urlChannel}`, liveTitle.trim());
-      localStorage.removeItem(`liveSeen_${urlChannel}`);
-      // admin auto-joins
-      enterLiveMode();
-      banner("라이브가 시작되었습니다");
+      showPromptDialog("라이브 시작", "라이브 제목을 입력하세요", async (liveTitle) => {
+        if (!IS_MOCK) await adminStartLive(urlChannel);
+        liveActive = true;
+        localStorage.setItem(`liveActive_${urlChannel}`, "true");
+        localStorage.setItem(`liveTitle_${urlChannel}`, liveTitle);
+        localStorage.removeItem(`liveSeen_${urlChannel}`);
+        enterLiveMode();
+        banner("라이브가 시작되었습니다");
+      });
     }
   });
+
+  // emoji preset now in + menu during live mode
+
+  document.body.appendChild(panel);
+}
+
+function showEmojiPresetPanel() {
+  document.querySelector(".emoji-preset-panel")?.remove();
+
+  const activeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  const currentEmojis = JSON.parse(localStorage.getItem(`liveEmojis_${activeChannel}`) || '["🍋","🔥","❤️","😂","👏","🎉"]');
+
+  const panel = document.createElement("div");
+  panel.className = "emoji-preset-panel";
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>이모지 프리셋</h3>
+        <button class="emoji-preset-close">✕</button>
+      </div>
+      <div class="admin-panel-body" style="padding:20px 18px;">
+        <div class="emoji-preset-list" id="emojiPresetList"></div>
+        <div class="banned-words-add">
+          <button class="emoji-preset-add-btn">+ 추가</button>
+        </div>
+        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+      </div>
+    </div>
+  `;
+
+  const listEl = panel.querySelector("#emojiPresetList");
+  const resultEl = panel.querySelector(".admin-passcode-result");
+  let emojis = [...currentEmojis];
+
+  function renderEmojis() {
+    listEl.innerHTML = emojis.map((e, i) => `
+      <div class="emoji-preset-item" data-idx="${i}" draggable="true">
+        <span class="emoji-preset-drag">☰</span>
+        <span class="banned-word-text" style="font-size:calc(var(--bubble-font-size, 17px) + 4px)">${e}</span>
+        <button class="banned-word-remove" data-idx="${i}">✕</button>
+      </div>
+    `).join("");
+
+    // drag-to-reorder
+    let dragIdx = null;
+    listEl.querySelectorAll(".emoji-preset-item").forEach(item => {
+      item.addEventListener("dragstart", (e) => {
+        dragIdx = parseInt(item.dataset.idx);
+        item.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      item.addEventListener("dragend", () => {
+        item.classList.remove("dragging");
+        dragIdx = null;
+      });
+      item.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const overIdx = parseInt(item.dataset.idx);
+        if (dragIdx !== null && dragIdx !== overIdx) {
+          const [moved] = emojis.splice(dragIdx, 1);
+          emojis.splice(overIdx, 0, moved);
+          dragIdx = overIdx;
+          renderEmojis();
+          saveEmojis();
+        }
+      });
+    });
+
+    // touch drag for mobile
+    let touchIdx = null;
+    let touchClone = null;
+    listEl.querySelectorAll(".emoji-preset-item").forEach(item => {
+      item.addEventListener("touchstart", (e) => {
+        touchIdx = parseInt(item.dataset.idx);
+        item.classList.add("dragging");
+      }, { passive: true });
+      item.addEventListener("touchmove", (e) => {
+        if (touchIdx === null) return;
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const overItem = el?.closest(".emoji-preset-item");
+        if (overItem) {
+          const overIdx = parseInt(overItem.dataset.idx);
+          if (overIdx !== touchIdx) {
+            const [moved] = emojis.splice(touchIdx, 1);
+            emojis.splice(overIdx, 0, moved);
+            touchIdx = overIdx;
+            renderEmojis();
+            saveEmojis();
+          }
+        }
+      }, { passive: true });
+      item.addEventListener("touchend", () => {
+        item.classList.remove("dragging");
+        touchIdx = null;
+      });
+    });
+  }
+  renderEmojis();
+
+  // reorder (handled inline above)
+
+  // remove
+  listEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".banned-word-remove");
+    if (btn) {
+      emojis.splice(parseInt(btn.dataset.idx), 1);
+      renderEmojis();
+      saveEmojis();
+    }
+  });
+
+  // add via emoji picker
+  panel.querySelector(".emoji-preset-add-btn").addEventListener("click", () => {
+    const pickerWrap = document.createElement("div");
+    pickerWrap.className = "emoji-fx-picker-wrap";
+    pickerWrap.style.position = "relative";
+    pickerWrap.style.bottom = "auto";
+    pickerWrap.style.right = "auto";
+    pickerWrap.style.marginTop = "12px";
+    const picker = document.createElement("emoji-picker");
+    pickerWrap.appendChild(picker);
+    picker.addEventListener("emoji-click", (e) => {
+      const emoji = e.detail.unicode;
+      if (!emojis.includes(emoji)) {
+        emojis.push(emoji);
+        renderEmojis();
+        saveEmojis();
+      }
+    });
+    // toggle
+    const existing = panel.querySelector(".emoji-fx-picker-wrap");
+    if (existing) { existing.remove(); return; }
+    panel.querySelector(".banned-words-add").insertAdjacentElement("afterend", pickerWrap);
+  });
+
+  function saveEmojis() {
+    localStorage.setItem(`liveEmojis_${activeChannel}`, JSON.stringify(emojis));
+    resultEl.textContent = "✓ 저장됨";
+    resultEl.style.display = "block";
+    setTimeout(() => { resultEl.style.display = "none"; }, 1500);
+    // update the emoji bar if visible
+    updateEmojiBarPresets(emojis);
+  }
+
+  panel.querySelector(".emoji-preset-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
 
   document.body.appendChild(panel);
 }

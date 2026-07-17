@@ -1867,7 +1867,8 @@ emoji-picker {
 .admin-panel,
 .admin-color-panel,
 .admin-passcode-panel,
-.banned-words-panel {
+.banned-words-panel,
+.emoji-preset-panel {
   position: fixed;
   inset: 0;
   z-index: 90;
@@ -1903,7 +1904,8 @@ emoji-picker {
 .admin-panel-close,
 .admin-color-close,
 .admin-passcode-close,
-.banned-words-close {
+.banned-words-close,
+.emoji-preset-close {
   background: none;
   border: none;
   cursor: pointer;
@@ -2444,3 +2446,62 @@ emoji-picker {
   100% { transform: translateY(0); opacity: 0; }
 }
 /* end emoji effects */
+
+/* ---------- confirm dialog ---------- */
+.confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* ---------- emoji preset panel ---------- */
+.emoji-preset-add-btn {
+  width: 100%;
+  background: #f4f4f4;
+  border: 1.5px dashed #e0e0e0;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: var(--bubble-font-size, 14px);
+  color: var(--meta);
+  cursor: pointer;
+  font-family: inherit;
+}
+[data-theme="dark"] .emoji-preset-add-btn {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.emoji-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f4f4f4;
+  border-radius: 10px;
+  cursor: grab;
+  touch-action: none;
+}
+.emoji-preset-item.dragging {
+  opacity: 0.5;
+}
+.emoji-preset-drag {
+  color: var(--meta);
+  font-size: var(--bubble-font-size, 14px);
+  margin-right: 8px;
+  cursor: grab;
+}
+[data-theme="dark"] .emoji-preset-item {
+  background: #2a2a2a;
+}
+
+.emoji-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
