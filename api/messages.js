@@ -113,21 +113,44 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "missing fields" });
     }
 
-    // verify ownership
-    const { data: msg } = await supabase
-      .from("messages")
-      .select("uid")
-      .eq("id", id)
-      .single();
+    // verify ownership for edit/delete (not for reactions)
+    if (action === "soft-delete" || action === "edit") {
+      const { data: msg } = await supabase
+        .from("messages")
+        .select("uid")
+        .eq("id", id)
+        .single();
 
-    if (!msg) return res.status(404).json({ error: "not found" });
-    if (msg.uid !== uid) return res.status(403).json({ error: "not yours" });
+      if (!msg) return res.status(404).json({ error: "not found" });
+      if (msg.uid !== uid) return res.status(403).json({ error: "not yours" });
+    }
 
     if (action === "soft-delete") {
       const { error } = await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
       if (error) return res.status(500).json({ error: error.message });
     } else if (action === "edit") {
       const { error } = await supabase.from("messages").update({ text: text || "", edited: true }).eq("id", id);
+      if (error) return res.status(500).json({ error: error.message });
+    } else if (action === "react") {
+      const { emoji } = req.body;
+      if (!emoji) return res.status(400).json({ error: "missing emoji" });
+      const { data: msgData } = await supabase.from("messages").select("reactions").eq("id", id).single();
+      const reactions = msgData?.reactions || {};
+      const key = `${uid}_${emoji.codePointAt(0).toString(16)}`;
+      if (reactions[key]) {
+        delete reactions[key];
+      } else {
+        reactions[key] = emoji;
+      }
+      const { error } = await supabase.from("messages").update({ reactions }).eq("id", id);
+      if (error) return res.status(500).json({ error: error.message });
+    } else if (action === "react-clear") {
+      const { data: msgData } = await supabase.from("messages").select("reactions").eq("id", id).single();
+      const reactions = msgData?.reactions || {};
+      Object.keys(reactions).forEach((key) => {
+        if (key.startsWith(`${uid}_`)) delete reactions[key];
+      });
+      const { error } = await supabase.from("messages").update({ reactions }).eq("id", id);
       if (error) return res.status(500).json({ error: error.message });
     } else {
       return res.status(400).json({ error: "unknown action" });

@@ -160,24 +160,37 @@ export async function markReported(id, reported) {
 
 /* ---- Reactions ---- */
 export async function addReaction(id, emoji, uid) {
-  const { data } = await supabase.from("messages").select("reactions").eq("id", id).single();
-  const reactions = data?.reactions || {};
-  const key = `${uid}_${emoji.codePointAt(0).toString(16)}`;
-  if (reactions[key]) {
-    delete reactions[key];
-  } else {
-    reactions[key] = emoji;
+  const res = await fetch("/api/messages", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, uid, action: "react", emoji }),
+  });
+  if (!res.ok) {
+    // fallback direct (for mock mode)
+    const { data } = await supabase.from("messages").select("reactions").eq("id", id).single();
+    const reactions = data?.reactions || {};
+    const key = `${uid}_${emoji.codePointAt(0).toString(16)}`;
+    if (reactions[key]) delete reactions[key];
+    else reactions[key] = emoji;
+    await supabase.from("messages").update({ reactions }).eq("id", id);
   }
-  await supabase.from("messages").update({ reactions }).eq("id", id);
 }
 
 export async function removeReaction(id, uid) {
+  // remove all reactions by this user — fetch, clear, update via API
   const { data } = await supabase.from("messages").select("reactions").eq("id", id).single();
   const reactions = data?.reactions || {};
   Object.keys(reactions).forEach((key) => {
     if (key.startsWith(`${uid}_`)) delete reactions[key];
   });
-  await supabase.from("messages").update({ reactions }).eq("id", id);
+  const res = await fetch("/api/messages", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, uid, action: "react-clear" }),
+  });
+  if (!res.ok) {
+    await supabase.from("messages").update({ reactions }).eq("id", id);
+  }
 }
 
 /* ---- Blocked users ---- */
