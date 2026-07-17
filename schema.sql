@@ -23,6 +23,7 @@ create table messages (
   image text,
   image_w integer,
   image_h integer,
+  fingerprint text,
   channel_id text default 'main',
   created_at timestamptz default now()
 );
@@ -32,6 +33,7 @@ create table blocked (
   id uuid default gen_random_uuid() primary key,
   uid text not null,
   reason text default '',
+  fingerprint text,
   channel_id text default 'main',
   created_at timestamptz default now()
 );

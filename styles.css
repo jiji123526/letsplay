@@ -660,19 +660,19 @@ body {
   color: var(--meta);
 }
 .reaction-pill.mine {
-  border-color: var(--tint);
-  background: rgba(0,122,255,.08);
+  border-color: var(--bubble-sent, #3b8df0);
+  background: color-mix(in srgb, var(--bubble-sent, #3b8df0) 10%, transparent);
 }
 .reaction-pill.mine .reaction-count {
-  color: var(--tint);
+  color: var(--bubble-sent, #3b8df0);
 }
 [data-theme="dark"] .reaction-pill {
   background: #2c2c2e;
   border-color: rgba(255,255,255,.1);
 }
 [data-theme="dark"] .reaction-pill.mine {
-  background: rgba(10,132,255,.15);
-  border-color: var(--tint);
+  background: color-mix(in srgb, var(--bubble-sent, #3b8df0) 15%, transparent);
+  border-color: var(--bubble-sent, #3b8df0);
 }
 /* add reaction button */
 .reaction-add-btn {
@@ -2119,4 +2119,110 @@ emoji-picker {
 [data-theme="dark"] .live-exit-banner {
   background: #2d1515;
   border-bottom-color: #4a1c1c;
+}
+
+/* ---------- edit dialog ---------- */
+.edit-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.edit-dialog-content {
+  width: 100%;
+  max-width: 300px;
+  background: var(--bg);
+  border-radius: 16px;
+  padding: 20px;
+}
+.edit-dialog-title {
+  font-size: var(--bubble-font-size, 16px);
+  color: var(--gray-text);
+  margin-bottom: 12px;
+}
+.edit-dialog-input {
+  width: 100%;
+  background: #f4f4f4;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: var(--bubble-font-size, 14px);
+  font-family: inherit;
+  color: var(--gray-text);
+  resize: none;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.edit-dialog-input:focus {
+  outline: none;
+  border-color: var(--bubble-sent, #3b8df0);
+}
+.edit-dialog-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.edit-dialog-cancel,
+.edit-dialog-save {
+  flex: 1;
+  border: none;
+  border-radius: 12px;
+  padding: 11px;
+  font-size: var(--bubble-font-size, 14px);
+  cursor: pointer;
+  font-family: inherit;
+}
+.edit-dialog-cancel {
+  background: #f4f4f4;
+  color: #666;
+}
+.edit-dialog-save {
+  background: var(--bubble-sent, #3b8df0);
+  color: #fff;
+}
+[data-theme="dark"] .edit-dialog-input {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+[data-theme="dark"] .edit-dialog-cancel {
+  background: #333;
+  color: #ccc;
+}
+
+/* ---------- notice edit dialog ---------- */
+.notice-edit-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.notice-edit-title {
+  width: 100%;
+  background: #f4f4f4;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: var(--bubble-font-size, 14px);
+  font-family: inherit;
+  color: var(--gray-text);
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+.notice-edit-title:focus {
+  outline: none;
+  border-color: var(--bubble-sent, #3b8df0);
+}
+[data-theme="dark"] .notice-edit-title {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
 }

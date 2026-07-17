@@ -81,6 +81,7 @@ function formatMessage(row) {
     image: row.image || null,
     imageW: row.image_w || null,
     imageH: row.image_h || null,
+    fingerprint: row.fingerprint || null,
     replyTo: row.reply_to,
     report: row.report,
     reportedMsgId: row.reported_msg_id,
@@ -94,9 +95,10 @@ function formatMessage(row) {
   };
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
   const authUid = currentUser.id;
   const row = { uid, auth_uid: authUid, nick, text, is_admin: !!is_admin, channel_id: channelId, created_at: new Date().toISOString() };
+  if (fingerprint) row.fingerprint = fingerprint;
   if (replyTo) row.reply_to = replyTo;
   if (report) { row.report = true; row.reported_msg_id = reportedMsgId || null; }
   if (image) {
@@ -173,11 +175,13 @@ export function subscribeBlocked(cb) {
 
 async function fetchBlocked() {
   const { data } = await supabase.from("blocked").select("*").eq("channel_id", channelId);
-  return (data || []).map((b) => ({ uid: b.uid, reason: b.reason || "" }));
+  return (data || []).map((b) => ({ uid: b.uid, fingerprint: b.fingerprint || "", reason: b.reason || "" }));
 }
 
-export async function blockUser(uid, reason) {
-  await supabase.from("blocked").insert({ uid, reason: reason || "", channel_id: channelId });
+export async function blockUser(uid, reason, fingerprint) {
+  const row = { uid, reason: reason || "", channel_id: channelId };
+  if (fingerprint) row.fingerprint = fingerprint;
+  await supabase.from("blocked").insert(row);
 }
 
 export async function unblockUser(uid) {

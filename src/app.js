@@ -17,6 +17,7 @@ import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
 import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner } from "./modules/live.js";
+import { generateFingerprint } from "./modules/fingerprint.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
 
@@ -45,6 +46,7 @@ async function hashString(str) {
 /* ---------- local state ---------- */
 let myUid   = null;
 let myNick  = "";          // derived from uid on sign-in (anonymous tag)
+const myFingerprint = generateFingerprint();
 let isAdmin = localStorage.getItem("isAdmin") === "true";
 // restore admin passcode for API calls
 if (isAdmin) {
@@ -321,7 +323,7 @@ function showDmMenu(e, msg, bubbleEl) {
   } else {
     actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       blockedUids.add(msg.uid);
-      doBlock(msg.uid, msg.text || "[DM]");
+      doBlock(msg.uid, msg.text || "[DM]", msg.fingerprint);
       render();
     }});
   }
@@ -810,6 +812,37 @@ function showChannelPicker() {
   document.body.appendChild(overlay);
 }
 
+function showEditDialog(currentText, onSave) {
+  document.querySelector(".edit-dialog")?.remove();
+
+  const dialog = document.createElement("div");
+  dialog.className = "edit-dialog";
+  dialog.innerHTML = `
+    <div class="edit-dialog-content">
+      <div class="edit-dialog-title">메시지 수정</div>
+      <textarea class="edit-dialog-input" rows="4">${currentText || ""}</textarea>
+      <div class="edit-dialog-buttons">
+        <button class="edit-dialog-cancel">취소</button>
+        <button class="edit-dialog-save">저장</button>
+      </div>
+    </div>
+  `;
+
+  const textarea = dialog.querySelector(".edit-dialog-input");
+
+  dialog.querySelector(".edit-dialog-save").addEventListener("click", () => {
+    const text = textarea.value;
+    dialog.remove();
+    onSave(text);
+  });
+  dialog.querySelector(".edit-dialog-cancel").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.remove(); });
+
+  document.body.appendChild(dialog);
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+}
+
 function showPasscodeDialog(targetChannel, onSuccess) {
   document.querySelector(".passcode-dialog")?.remove();
 
@@ -876,6 +909,7 @@ initLiveMode({
     if ("liveActive" in updates) liveActive = updates.liveActive;
     if ("allMessages" in updates) allMessages = updates.allMessages;
     if ("messages" in updates) messages = updates.messages;
+    if ("dmMessages" in updates) dmMessages = updates.dmMessages;
     if ("hasScrolledInitial" in updates) hasScrolledInitial = updates.hasScrolledInitial;
   },
   subscribe,
@@ -921,6 +955,7 @@ initAuth().then((uid) => {
    CONTEXT MENU  —  iOS-style long-press menu with reactions + actions
    ============================================================ */
 let blockedUids = new Set(getBlockedUsers().map(b => b.uid));
+let blockedFingerprints = new Set(getBlockedUsers().filter(b => b.fingerprint).map(b => b.fingerprint));
 let blockedList = getBlockedUsers();
 
 const REACTIONS = ["👍", "👎", "🫪", "❓"];
@@ -1091,9 +1126,9 @@ async function doDeleteGallery(id) {
   else await removeFromGallery(id);
 }
 
-async function doBlock(uid, reason) {
+async function doBlock(uid, reason, fingerprint) {
   if (isAdmin && !IS_MOCK) await adminBlock(uid, reason);
-  else await blockUser(uid, reason);
+  else await blockUser(uid, reason, fingerprint);
 }
 
 async function doUnblock(uid) {
@@ -1159,7 +1194,7 @@ function getActions(msg, isMe) {
     actions.push({ label: "사용자 차단", icon: ICONS.block, danger: true, handler: () => {
       const isBlocked = blockedUids.has(msg.uid);
       if (isBlocked) { blockedUids.delete(msg.uid); doUnblock(msg.uid); }
-      else { blockedUids.add(msg.uid); doBlock(msg.uid, msg.text); }
+      else { blockedUids.add(msg.uid); doBlock(msg.uid, msg.text, msg.fingerprint); }
       render();
     }});
     return actions;
@@ -1171,8 +1206,9 @@ function getActions(msg, isMe) {
       setReply(target);
     }});
     actions.push({ label: "수정", icon: ICONS.edit, danger: false, handler: () => {
-      const newText = prompt("메시지 수정:", msg.text);
-      if (newText !== null && newText.trim()) doEditMessage(msg.id, newText.trim());
+      showEditDialog(msg.text, (newText) => {
+        if (newText.trim()) doEditMessage(msg.id, newText.trim());
+      });
     }});
     actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
       if (msg.galleryId) doDeleteGallery(msg.galleryId);
@@ -1348,7 +1384,7 @@ function clearReply() {
 
 /* check if current user is blocked and disable composer */
 function checkIfBlocked() {
-  const blocked = !isAdmin && blockedUids.has(myUid);
+  const blocked = !isAdmin && (blockedUids.has(myUid) || blockedFingerprints.has(myFingerprint));
   const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
 
   if (blocked) {
@@ -1428,7 +1464,7 @@ async function send() {
   toggleSend();
   const nick = isAdmin ? "관리자" : myNick;
   const sendUid = isAdmin ? "admin" : myUid;
-  const msgData = { uid: sendUid, nick, text, is_admin: isAdmin };
+  const msgData = { uid: sendUid, nick, text, is_admin: isAdmin, fingerprint: myFingerprint };
   const photos = [...pendingPhotos];
   pendingPhotos = [];
   removePhotoPreview();
@@ -1556,6 +1592,8 @@ function showAdminPlusMenu(e) {
 }
 
 function showNoticeInput() {
+  document.querySelector(".notice-edit-dialog")?.remove();
+
   // parse current notice for pre-fill
   let currentTitle = "";
   let currentBody = "";
@@ -1566,20 +1604,42 @@ function showNoticeInput() {
     } catch { currentTitle = currentNotice; }
   }
 
-  const title = prompt("공지 제목 (비우면 공지 삭제):", currentTitle);
-  if (title === null) return; // cancelled
-  if (!title.trim()) {
-    // clear notice
-    setNoticeBanner("");
-    banner("공지가 삭제되었습니다");
-    return;
-  }
-  const body = prompt("공지 내용 (선택사항, 빈칸이면 생략):", currentBody);
-  if (body === null) return; // user cancelled
-  const notice = body.trim()
-    ? JSON.stringify({ title: title.trim(), body: body.trim() })
-    : title.trim();
-  setNoticeBanner(notice);
+  const dialog = document.createElement("div");
+  dialog.className = "notice-edit-dialog";
+  dialog.innerHTML = `
+    <div class="edit-dialog-content">
+      <div class="edit-dialog-title">공지 설정</div>
+      <input class="notice-edit-title" type="text" placeholder="공지 제목 (비우면 공지 삭제)" value="${currentTitle.replace(/"/g, "&quot;")}" />
+      <textarea class="edit-dialog-input" rows="4" placeholder="공지 내용 (선택사항)">${currentBody}</textarea>
+      <div class="edit-dialog-buttons">
+        <button class="edit-dialog-cancel">취소</button>
+        <button class="edit-dialog-save">저장</button>
+      </div>
+    </div>
+  `;
+
+  const titleInput = dialog.querySelector(".notice-edit-title");
+  const bodyInput = dialog.querySelector(".edit-dialog-input");
+
+  dialog.querySelector(".edit-dialog-save").addEventListener("click", () => {
+    const title = titleInput.value.trim();
+    const body = bodyInput.value.trim();
+    dialog.remove();
+    if (!title) {
+      setNoticeBanner("");
+      banner("공지가 삭제되었습니다");
+      return;
+    }
+    const notice = body
+      ? JSON.stringify({ title, body })
+      : title;
+    setNoticeBanner(notice);
+  });
+  dialog.querySelector(".edit-dialog-cancel").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", (e) => { if (e.target === dialog) dialog.remove(); });
+
+  document.body.appendChild(dialog);
+  titleInput.focus();
 }
 
 let currentNotice = "";
@@ -2399,7 +2459,7 @@ function startChat() {
   });
   imgObserver.observe(messagesEl, { childList: true, subtree: true });
   let galleryLoaded = false;
-  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
+  subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); blockedFingerprints = new Set(list.filter(b => b.fingerprint).map(b => b.fingerprint)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   subscribe((list) => {
     allMessages = list;
     // filter out report messages for display

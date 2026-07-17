@@ -17,7 +17,7 @@ export function initLiveMode(ctx) {
 
 export function enterLiveMode() {
   const { urlChannel, isAdmin } = _ctx.getState();
-  _ctx.setState({ inLiveMode: true, allMessages: [], messages: [], hasScrolledInitial: false });
+  _ctx.setState({ inLiveMode: true, allMessages: [], messages: [], dmMessages: [], hasScrolledInitial: false });
   localStorage.setItem(`inLiveMode_${urlChannel}`, "true");
   _ctx.setChannel(`${urlChannel}_live`);
   _ctx.render();
