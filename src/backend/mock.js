@@ -243,12 +243,14 @@ export function subscribeNotice(cb) {
 export function subscribeLiveStatus(chId, cb) {
   const activeKey = `liveActive_${chId || "main"}`;
   const titleKey = `liveTitle_${chId || "main"}`;
+  const sessionKey = `liveSession_${chId || "main"}`;
   const emitStatus = () => cb({
     active: localStorage.getItem(activeKey) === "true",
     title: localStorage.getItem(titleKey) || "",
+    sessionId: localStorage.getItem(sessionKey) || "",
   });
   const onStorage = (e) => {
-    if (e.key === activeKey || e.key === titleKey) emitStatus();
+    if (e.key === activeKey || e.key === titleKey || e.key === sessionKey) emitStatus();
   };
   window.addEventListener("storage", onStorage);
   emitStatus();

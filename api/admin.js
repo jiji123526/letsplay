@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 
 // Uses service role key — full access, bypasses RLS
 const supabase = createClient(
@@ -153,10 +154,11 @@ export default async function handler(req, res) {
       case "startLive": {
         const { channelId, title } = payload;
         const liveId = `live_${channelId || "main"}`;
-        const text = JSON.stringify({ active: true, title: title || "라이브 채팅" });
+        const sessionId = randomUUID();
+        const text = JSON.stringify({ active: true, title: title || "라이브 채팅", sessionId });
         const { error } = await supabase.from("config").upsert({ id: liveId, text, channel_id: channelId || "main", updated_at: new Date().toISOString() });
         if (error) throw error;
-        return res.json({ ok: true });
+        return res.json({ ok: true, sessionId });
       }
 
       case "endLive": {

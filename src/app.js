@@ -2366,11 +2366,17 @@ function showAdminPanel() {
     } else {
       // start live mode
       showPromptDialog("라이브 시작", "라이브 제목을 입력하세요", async (liveTitle) => {
-        if (!IS_MOCK) await adminStartLive(urlChannel, liveTitle);
+        let sessionId;
+        if (!IS_MOCK) {
+          const result = await adminStartLive(urlChannel, liveTitle);
+          sessionId = result.sessionId;
+        } else {
+          sessionId = crypto.randomUUID();
+        }
         liveActive = true;
+        localStorage.setItem(`liveSession_${urlChannel}`, sessionId);
         localStorage.setItem(`liveTitle_${urlChannel}`, liveTitle);
         localStorage.setItem(`liveActive_${urlChannel}`, "true");
-        localStorage.removeItem(`liveSeen_${urlChannel}`);
         enterLiveMode();
         banner("라이브가 시작되었습니다");
       });
@@ -2925,17 +2931,22 @@ function startChat() {
   }
 
   // keep old tabs synchronized with live start/end state
-  subscribeLiveStatus(urlChannel, ({ active, title }) => {
+  subscribeLiveStatus(urlChannel, ({ active, title, sessionId }) => {
     liveActive = active;
     localStorage.setItem(`liveActive_${urlChannel}`, active ? "true" : "false");
     if (title) localStorage.setItem(`liveTitle_${urlChannel}`, title);
+    const currentSessionId = sessionId || "legacy-active";
+    if (active) localStorage.setItem(`liveSession_${urlChannel}`, currentSessionId);
 
     if (active && !isAdmin && !inLiveMode) {
-      if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
-      else showLivePopup();
+      if (localStorage.getItem(`liveSeen_${urlChannel}`) === currentSessionId) {
+        if (!document.querySelector(".live-popup")) showLiveBanner();
+      } else {
+        showLivePopup();
+      }
     } else if (!active) {
       document.querySelector(".live-banner")?.remove();
-      document.querySelector(".live-popup")?.remove();
+      document.querySelector(".live-popup:not(.live-ended-popup)")?.remove();
       if (inLiveMode) {
         localStorage.setItem(`liveEnded_${urlChannel}`, "true");
         exitLiveMode();

@@ -82,7 +82,8 @@ export function exitLiveMode() {
 export function showLivePopup() {
   const { urlChannel } = _ctx.getState();
   document.querySelector(".live-popup")?.remove();
-  localStorage.setItem(`liveSeen_${urlChannel}`, "true");
+  const sessionId = localStorage.getItem(`liveSession_${urlChannel}`) || "legacy-active";
+  localStorage.setItem(`liveSeen_${urlChannel}`, sessionId);
 
   const liveTitle = localStorage.getItem(`liveTitle_${urlChannel}`) || "라이브 채팅";
   const popup = document.createElement("div");
@@ -137,7 +138,10 @@ export function removeLiveBanner() {
 
 export function showLiveEndedPopup() {
   const popup = document.createElement("div");
-  popup.className = "live-popup";
+  popup.className = "live-popup live-ended-popup";
+  popup.setAttribute("role", "dialog");
+  popup.setAttribute("aria-modal", "true");
+  popup.tabIndex = -1;
   popup.innerHTML = `
     <div class="live-popup-content">
       <div class="live-popup-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/></svg></div>
@@ -149,10 +153,15 @@ export function showLiveEndedPopup() {
     </div>
   `;
 
-  popup.querySelector(".live-popup-yes").addEventListener("click", () => popup.remove());
-  popup.addEventListener("click", (e) => { if (e.target === popup) popup.remove(); });
+  const close = () => {
+    document.removeEventListener("keydown", close);
+    popup.remove();
+  };
+  popup.addEventListener("click", close);
+  document.addEventListener("keydown", close);
 
   document.body.appendChild(popup);
+  popup.focus();
 }
 
 

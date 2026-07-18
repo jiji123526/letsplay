@@ -449,14 +449,14 @@ export async function getLiveStatus(chId) {
 }
 
 function parseLiveStatus(text) {
-  if (!text) return { active: false, title: "" };
+  if (!text) return { active: false, title: "", sessionId: "" };
   try {
     const value = JSON.parse(text);
     if (typeof value === "object" && value !== null) {
-      return { active: value.active === true, title: value.title || "" };
+      return { active: value.active === true, title: value.title || "", sessionId: value.sessionId || "" };
     }
   } catch { /* legacy true/false value */ }
-  return { active: text === "true", title: "" };
+  return { active: text === "true", title: "", sessionId: "" };
 }
 
 export function subscribeLiveStatus(chId, cb) {
