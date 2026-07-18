@@ -1,6 +1,11 @@
 import { defineConfig } from "vite";
 
+const appVersion = process.env.VERCEL_GIT_COMMIT_SHA || "local";
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   server: {
     allowedHosts: true,
   },

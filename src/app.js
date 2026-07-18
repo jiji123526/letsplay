@@ -1590,6 +1590,7 @@ async function send() {
     } else {
       input.blur(); // dismiss keyboard outside live mode
     }
+    applyPendingAppUpdate();
   }
   catch (e) {
     console.error("send failed", e);
@@ -2994,3 +2995,36 @@ function banner(msg, color) {
   clearTimeout(banner._timer);
   banner._timer = setTimeout(() => { b.style.display = "none"; }, 3000);
 }
+
+/* Reload safely when a newer deployment becomes active. */
+let versionCheckRunning = false;
+let pendingAppVersion = null;
+
+function applyPendingAppUpdate() {
+  if (!pendingAppVersion) return;
+  const hasDraft = input.value.length > 0 || pendingPhotos.length > 0 || replyingTo || dmMode;
+  if (hasDraft) return;
+  window.location.reload();
+}
+
+async function checkForAppUpdate() {
+  if (__APP_VERSION__ === "local" || versionCheckRunning || document.visibilityState !== "visible") return;
+  versionCheckRunning = true;
+  try {
+    const response = await fetch(`/api/version?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const { version } = await response.json();
+    if (version && version !== "local" && version !== __APP_VERSION__) {
+      pendingAppVersion = version;
+      applyPendingAppUpdate();
+    }
+  } catch { /* retry on the next interval */ }
+  finally { versionCheckRunning = false; }
+}
+
+setInterval(checkForAppUpdate, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") checkForAppUpdate();
+});
+input.addEventListener("input", applyPendingAppUpdate);
+checkForAppUpdate();
