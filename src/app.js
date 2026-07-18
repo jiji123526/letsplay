@@ -1267,7 +1267,7 @@ function getActions(msg, isMe) {
       if (msg.report && msg.reportedMsgId) {
         // deleting a report: delete the reported message, its replies, and the report itself
         deleteMessageWithReplies(msg.reportedMsgId);
-        removeMessage(msg.id);
+        doDeleteMessage(msg.id);
       } else {
         deleteMessageWithReplies(msg.id);
       }
@@ -1293,7 +1293,7 @@ function getActions(msg, isMe) {
     }});
     actions.push({ label: "삭제", icon: ICONS.delete, danger: true, handler: () => {
       if (msg.galleryId) doDeleteGallery(msg.galleryId);
-      removeMessage(msg.id);
+      doDeleteMessage(msg.id);
     }});
     return actions;
   } else if (!isAdmin && isMe) {
@@ -1380,7 +1380,7 @@ async function reportMessage(msg) {
 async function unreportMessage(msg) {
   const reportMsg = allMessages.find((m) => m.report && m.reportedMsgId === msg.id && m.uid === myUid);
   if (reportMsg) {
-    await removeMessage(reportMsg.id);
+    await doDeleteMessage(reportMsg.id);
   }
   reportedMsgIds.delete(msg.id);
   saveReportedIds();
