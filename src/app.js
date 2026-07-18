@@ -1585,7 +1585,11 @@ async function send() {
       }
     }
     sendTimestamps.push(Date.now());
-    input.blur(); // dismiss keyboard
+    if (inLiveMode) {
+      input.focus({ preventScroll: true });
+    } else {
+      input.blur(); // dismiss keyboard outside live mode
+    }
   }
   catch (e) {
     console.error("send failed", e);
