@@ -88,8 +88,8 @@ export async function adminGetPasscode(channelId) {
   } catch { return null; }
 }
 
-export async function adminStartLive(channelId) {
-  return adminCall("startLive", { channelId });
+export async function adminStartLive(channelId, title) {
+  return adminCall("startLive", { channelId, title });
 }
 
 export async function adminEndLive(channelId) {

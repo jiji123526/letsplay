@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, subscribeLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -986,12 +986,12 @@ initLiveMode({
   },
   subscribe,
   setChannel,
+  initBroadcast,
+  subscribeCurrentNotice,
   render,
   debouncedRender,
   banner,
   adminEndLive,
-  subscribeNotice,
-  onNotice: (text) => { currentNotice = text; renderNoticeBanner(); },
   broadcastEmoji,
   showConfirmDialog,
 });
@@ -1231,7 +1231,8 @@ async function doDeleteDm(id) {
 }
 
 async function doSetNotice(text) {
-  if (isAdmin && !IS_MOCK) await adminSetNotice(text, urlChannel);
+  const noticeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  if (isAdmin && !IS_MOCK) await adminSetNotice(text, noticeChannel);
   else await setNotice(text);
 }
 
@@ -1745,10 +1746,28 @@ function showNoticeInput() {
 }
 
 let currentNotice = "";
+let noticeUnsub = null;
+
+function subscribeCurrentNotice() {
+  if (noticeUnsub) noticeUnsub();
+  const subscribedChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  let initialized = false;
+  currentNotice = "";
+  renderNoticeBanner();
+  noticeUnsub = subscribeNotice((text) => {
+    if (initialized && text && text !== currentNotice) {
+      localStorage.removeItem(`noticeDismissed_${subscribedChannel}`);
+    }
+    initialized = true;
+    currentNotice = text;
+    renderNoticeBanner();
+  });
+}
 
 function setNoticeBanner(text) {
   currentNotice = text;
-  localStorage.removeItem(`noticeDismissed_${urlChannel}`);
+  const activeChannel = inLiveMode ? `${urlChannel}_live` : urlChannel;
+  localStorage.removeItem(`noticeDismissed_${activeChannel}`);
   doSetNotice(text);
   renderNoticeBanner();
 }
@@ -2347,10 +2366,10 @@ function showAdminPanel() {
     } else {
       // start live mode
       showPromptDialog("라이브 시작", "라이브 제목을 입력하세요", async (liveTitle) => {
-        if (!IS_MOCK) await adminStartLive(urlChannel);
+        if (!IS_MOCK) await adminStartLive(urlChannel, liveTitle);
         liveActive = true;
-        localStorage.setItem(`liveActive_${urlChannel}`, "true");
         localStorage.setItem(`liveTitle_${urlChannel}`, liveTitle);
+        localStorage.setItem(`liveActive_${urlChannel}`, "true");
         localStorage.removeItem(`liveSeen_${urlChannel}`);
         enterLiveMode();
         banner("라이브가 시작되었습니다");
@@ -2881,17 +2900,8 @@ function startChat() {
   });
   // subscribe to gallery
   subscribeGallery((list) => { galleryItems = list; if (!galleryLoaded) { galleryLoaded = true; render(); } else { debouncedRender(); } });
-  // subscribe to notice
-  let noticeInitialized = false;
-  subscribeNotice((text) => {
-    // only reset dismiss when notice actually changes (not on first load)
-    if (noticeInitialized && text && text !== currentNotice) {
-      localStorage.removeItem(`noticeDismissed_${urlChannel}`);
-    }
-    noticeInitialized = true;
-    currentNotice = text;
-    renderNoticeBanner();
-  });
+  // subscribe only to the active normal/live channel notice
+  subscribeCurrentNotice();
   toggleSend();
   renderNoticeBanner();
 
@@ -2914,27 +2924,24 @@ function startChat() {
     showLiveEndedPopup();
   }
 
-  // subscribe to live mode state
-  if (!IS_MOCK) {
-    getLiveStatus(urlChannel).then(active => {
-      liveActive = active;
-      localStorage.setItem(`liveActive_${urlChannel}`, active ? "true" : "false");
-      if (active && !isAdmin && !inLiveMode) {
-        if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
-        else showLivePopup();
-      }
-      if (!active && inLiveMode) {
+  // keep old tabs synchronized with live start/end state
+  subscribeLiveStatus(urlChannel, ({ active, title }) => {
+    liveActive = active;
+    localStorage.setItem(`liveActive_${urlChannel}`, active ? "true" : "false");
+    if (title) localStorage.setItem(`liveTitle_${urlChannel}`, title);
+
+    if (active && !isAdmin && !inLiveMode) {
+      if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
+      else showLivePopup();
+    } else if (!active) {
+      document.querySelector(".live-banner")?.remove();
+      document.querySelector(".live-popup")?.remove();
+      if (inLiveMode) {
         localStorage.setItem(`liveEnded_${urlChannel}`, "true");
         exitLiveMode();
       }
-    });
-  } else {
-    // mock mode: check localStorage
-    if (liveActive && !isAdmin && !inLiveMode) {
-      if (localStorage.getItem(`liveSeen_${urlChannel}`)) showLiveBanner();
-      else showLivePopup();
     }
-  }
+  });
 
   // load more messages when scrolling to top
   let loadingMore = false;

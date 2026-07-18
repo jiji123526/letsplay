@@ -151,9 +151,10 @@ export default async function handler(req, res) {
       }
 
       case "startLive": {
-        const { channelId } = payload;
+        const { channelId, title } = payload;
         const liveId = `live_${channelId || "main"}`;
-        const { error } = await supabase.from("config").upsert({ id: liveId, text: "true", channel_id: channelId || "main", updated_at: new Date().toISOString() });
+        const text = JSON.stringify({ active: true, title: title || "라이브 채팅" });
+        const { error } = await supabase.from("config").upsert({ id: liveId, text, channel_id: channelId || "main", updated_at: new Date().toISOString() });
         if (error) throw error;
         return res.json({ ok: true });
       }

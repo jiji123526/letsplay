@@ -401,23 +401,25 @@ export async function setNotice(text) {
 }
 
 export function subscribeNotice(cb) {
-  fetchNotice().then(cb);
-
   const noticeId = `notice_${channelId}`;
+  let active = true;
+  const fetchSubscribedNotice = async () => {
+    const { data } = await supabase.from("config").select("text").eq("id", noticeId).single();
+    if (active) cb(data?.text || "");
+  };
+  fetchSubscribedNotice();
+
   const channel = supabase
     .channel(`config-${channelId}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "config", filter: `id=eq.${noticeId}` }, () => {
-      fetchNotice().then(cb);
+      fetchSubscribedNotice();
     })
     .subscribe();
 
-  return () => { supabase.removeChannel(channel); };
-}
-
-async function fetchNotice() {
-  const noticeId = `notice_${channelId}`;
-  const { data } = await supabase.from("config").select("text").eq("id", noticeId).single();
-  return data?.text || "";
+  return () => {
+    active = false;
+    supabase.removeChannel(channel);
+  };
 }
 
 /* ---- Search (PostgreSQL full-text search) ---- */
@@ -443,5 +445,34 @@ export async function getChannelPasscode(chId) {
 export async function getLiveStatus(chId) {
   const liveId = `live_${chId || "main"}`;
   const { data } = await supabase.from("config").select("text").eq("id", liveId).single();
-  return data?.text === "true";
+  return parseLiveStatus(data?.text).active;
+}
+
+function parseLiveStatus(text) {
+  if (!text) return { active: false, title: "" };
+  try {
+    const value = JSON.parse(text);
+    if (typeof value === "object" && value !== null) {
+      return { active: value.active === true, title: value.title || "" };
+    }
+  } catch { /* legacy true/false value */ }
+  return { active: text === "true", title: "" };
+}
+
+export function subscribeLiveStatus(chId, cb) {
+  const liveId = `live_${chId || "main"}`;
+  let active = true;
+  const fetchStatus = async () => {
+    const { data } = await supabase.from("config").select("text").eq("id", liveId).single();
+    if (active) cb(parseLiveStatus(data?.text));
+  };
+  fetchStatus();
+  const channel = supabase
+    .channel(`live-status-${chId || "main"}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "config", filter: `id=eq.${liveId}` }, fetchStatus)
+    .subscribe();
+  return () => {
+    active = false;
+    supabase.removeChannel(channel);
+  };
 }

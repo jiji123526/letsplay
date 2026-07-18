@@ -7,7 +7,7 @@ let _ctx = null;
 
 /**
  * Initialize live mode with app context.
- * @param {object} ctx - { getState, setState, subscribe, setChannel, render, debouncedRender, banner, adminEndLive, IS_MOCK }
+ * @param {object} ctx - { getState, setState, subscribe, setChannel, initBroadcast, subscribeCurrentNotice, render, debouncedRender, banner, adminEndLive, IS_MOCK }
  *   getState() returns { urlChannel, isAdmin, liveActive, inLiveMode, allMessages, messages, dmMessages, hasScrolledInitial }
  *   setState(updates) merges into app state
  */
@@ -20,6 +20,8 @@ export function enterLiveMode() {
   _ctx.setState({ inLiveMode: true, allMessages: [], messages: [], dmMessages: [], hasScrolledInitial: false });
   localStorage.setItem(`inLiveMode_${urlChannel}`, "true");
   _ctx.setChannel(`${urlChannel}_live`);
+  _ctx.initBroadcast();
+  _ctx.subscribeCurrentNotice();
   _ctx.render();
   // subscribe to live channel messages
   liveUnsub = _ctx.subscribe((list) => {
@@ -31,10 +33,6 @@ export function enterLiveMode() {
     _ctx.debouncedRender();
   });
   document.querySelector(".chat-header").classList.add("live-active");
-  // subscribe to live channel notice
-  if (_ctx.subscribeNotice) {
-    _ctx.subscribeNotice(_ctx.onNotice);
-  }
   showLiveExitBanner();
   showEmojiBar();
 }
@@ -74,6 +72,8 @@ export function exitLiveMode() {
   localStorage.setItem(`inLiveMode_${urlChannel}`, "false");
   if (liveUnsub) { liveUnsub(); liveUnsub = null; }
   _ctx.setChannel(urlChannel);
+  _ctx.initBroadcast();
+  _ctx.subscribeCurrentNotice();
   _ctx.setState({ allMessages: [], messages: [], hasScrolledInitial: false });
   _ctx.render();
   window.location.reload();

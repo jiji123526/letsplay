@@ -219,19 +219,40 @@ export function subscribeDm(cb) {
 const GALLERY_KEY = "mock_gallery";
 
 /* ---- Notice ---- */
-const NOTICE_KEY = "mock_notice";
-const noticeListeners = new Set();
+const noticeListeners = new Map();
 
 export async function setNotice(text) {
-  localStorage.setItem(getKey("mock_notice"), text);
-  noticeListeners.forEach((cb) => cb(text));
+  const key = getKey("mock_notice");
+  localStorage.setItem(key, text);
+  noticeListeners.get(key)?.forEach((cb) => cb(text));
 }
 
 export function subscribeNotice(cb) {
-  noticeListeners.add(cb);
-  cb(localStorage.getItem(getKey("mock_notice")) || "");
-  window.addEventListener("storage", (e) => { if (e.key === NOTICE_KEY) cb(e.newValue || ""); });
-  return () => noticeListeners.delete(cb);
+  const key = getKey("mock_notice");
+  if (!noticeListeners.has(key)) noticeListeners.set(key, new Set());
+  noticeListeners.get(key).add(cb);
+  cb(localStorage.getItem(key) || "");
+  const onStorage = (e) => { if (e.key === key) cb(e.newValue || ""); };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    noticeListeners.get(key)?.delete(cb);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+export function subscribeLiveStatus(chId, cb) {
+  const activeKey = `liveActive_${chId || "main"}`;
+  const titleKey = `liveTitle_${chId || "main"}`;
+  const emitStatus = () => cb({
+    active: localStorage.getItem(activeKey) === "true",
+    title: localStorage.getItem(titleKey) || "",
+  });
+  const onStorage = (e) => {
+    if (e.key === activeKey || e.key === titleKey) emitStatus();
+  };
+  window.addEventListener("storage", onStorage);
+  emitStatus();
+  return () => window.removeEventListener("storage", onStorage);
 }
 const galleryListeners = new Set();
 
