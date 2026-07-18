@@ -143,7 +143,7 @@ function formatMessage(row) {
   };
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
+export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
   // upload image first if present (direct to storage)
   let imageUrl = null;
   if (image) {
@@ -160,6 +160,7 @@ export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, 
       text: text || "",
       image: imageUrl || null,
       is_admin: !!is_admin,
+      admin_passcode: is_admin ? adminPasscode || null : null,
       channel_id: channelId,
       fingerprint: fingerprint || null,
       reply_to: replyTo || null,

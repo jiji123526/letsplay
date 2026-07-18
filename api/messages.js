@@ -20,10 +20,21 @@ function isRateLimited(uid) {
 
 export default async function handler(req, res) {
   if (req.method === "POST") {
-    const { uid, fingerprint, text, image, type, is_admin, channel_id, nick, reply_to, report, reported_msg_id, image_w, image_h, gallery_id, dm } = req.body;
+    const { uid, fingerprint, text, image, type, is_admin, admin_passcode, channel_id, nick, reply_to, report, reported_msg_id, image_w, image_h, gallery_id, dm } = req.body;
 
     if (!uid || !channel_id) {
       return res.status(400).json({ error: "missing fields" });
+    }
+
+    // Never trust the client-side is_admin flag by itself. Admin messages must
+    // prove admin access on the server before bypassing user restrictions.
+    const configuredAdminPasscode = process.env.ADMIN_PASSCODE;
+    const verifiedAdmin = is_admin === true
+      && typeof configuredAdminPasscode === "string"
+      && configuredAdminPasscode.length > 0
+      && admin_passcode === configuredAdminPasscode;
+    if (is_admin && !verifiedAdmin) {
+      return res.status(403).json({ error: "admin_auth_required" });
     }
 
     // check if user is banned (by uid or fingerprint)
@@ -38,12 +49,12 @@ export default async function handler(req, res) {
     }
 
     // rate limit
-    if (!is_admin && isRateLimited(uid)) {
+    if (!verifiedAdmin && isRateLimited(uid)) {
       return res.status(429).json({ error: "rate_limited" });
     }
 
     // banned words check
-    if (!is_admin && text) {
+    if (!verifiedAdmin && text) {
       const wordId = `bannedWords_${channel_id}`;
       const { data: wordData } = await supabase.from("config").select("text").eq("id", wordId).single();
       if (wordData && wordData.text) {
@@ -79,7 +90,7 @@ export default async function handler(req, res) {
       auth_uid: uid,
       nick: nick || null,
       text: text || "",
-      is_admin: !!is_admin,
+      is_admin: verifiedAdmin,
       channel_id,
       fingerprint: fingerprint || null,
       image: image || null,

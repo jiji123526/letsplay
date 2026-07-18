@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, getLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
-import { verifyAdmin, setAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
+import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
@@ -1553,7 +1553,7 @@ async function send() {
   toggleSend();
   const nick = isAdmin ? "관리자" : myNick;
   const sendUid = isAdmin ? "admin" : myUid;
-  const msgData = { uid: sendUid, nick, text, is_admin: isAdmin, fingerprint: myFingerprint };
+  const msgData = { uid: sendUid, nick, text, is_admin: isAdmin, adminPasscode: isAdmin ? getAdminPasscode() : null, fingerprint: myFingerprint };
   const photos = [...pendingPhotos];
   pendingPhotos = [];
   removePhotoPreview();
@@ -1580,7 +1580,7 @@ async function send() {
       for (let i = 1; i < photos.length; i++) {
         const p = photos[i];
         const galleryId = await saveToGallery(p.blob);
-        await sendMessage({ uid: sendUid, nick, text: "", is_admin: isAdmin, galleryId, imageW: p.dimensions?.width, imageH: p.dimensions?.height });
+        await sendMessage({ uid: sendUid, nick, text: "", is_admin: isAdmin, adminPasscode: isAdmin ? getAdminPasscode() : null, galleryId, imageW: p.dimensions?.width, imageH: p.dimensions?.height });
       }
     }
     sendTimestamps.push(Date.now());
