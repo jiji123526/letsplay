@@ -11,6 +11,42 @@ const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 
 let currentUser = null;
 let channelId = "main"; // default channel
+let adminCredential = null;
+let clientFingerprint = "";
+
+export function setAdminCredential(passcode) { adminCredential = passcode || null; }
+export function setClientFingerprint(fingerprint) { clientFingerprint = fingerprint || ""; }
+
+async function requireApiSuccess(res, fallbackMessage) {
+  if (res.ok) return;
+  let message = fallbackMessage;
+  try {
+    const data = await res.json();
+    if (data?.error) message = data.error;
+  } catch { /* response was not JSON */ }
+  throw new Error(message);
+}
+
+async function authenticatedHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("authentication required");
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session.access_token}`,
+  };
+}
+
+async function fetchPrivateData(resource, params = {}) {
+  const search = new URLSearchParams({ resource, channel_id: channelId, uid: currentUser?.id || "", ...params });
+  const headers = adminCredential
+    ? await authenticatedHeaders()
+    : { "Content-Type": "application/json" };
+  if (adminCredential) headers["X-Admin-Passcode"] = adminCredential;
+  const res = await fetch(`/api/data?${search}`, { headers, cache: "no-store" });
+  await requireApiSuccess(res, `${resource} fetch failed`);
+  const data = await res.json();
+  return data.items || [];
+}
 
 /* ---- Channel ---- */
 export function setChannel(id) { channelId = id; }
@@ -18,7 +54,17 @@ export function getChannel() { return channelId; }
 
 /* ---- Auth ---- */
 export async function initAuth() {
-  // reuse existing session if available (avoids rate limits on refresh)
+  // Ordinary visitors use a stable local identifier and never request a
+  // Supabase access token. Only admin mode establishes an authenticated session.
+  if (!adminCredential) {
+    let localUid = localStorage.getItem("chat_uid");
+    if (!localUid) {
+      localUid = crypto.randomUUID();
+      localStorage.setItem("chat_uid", localUid);
+    }
+    currentUser = { id: localUid };
+    return localUid;
+  }
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
@@ -32,21 +78,107 @@ export async function initAuth() {
 }
 
 /* ---- Messages ---- */
-let messageListeners = new Set();
+const MESSAGE_PAGE_SIZE = 100;
+let messageCache = [];
 
 export function subscribe(cb) {
-  // initial fetch
-  fetchMessages().then(cb);
+  const subscribedChannel = channelId;
+  let stopped = false;
+  let hasConnected = false;
+  let recentSyncPromise = null;
+  messageCache = [];
 
-  // realtime subscription — re-fetch on any change (filter in fetchMessages)
+  const publish = () => {
+    if (!stopped) cb([...messageCache]);
+  };
+
+  const syncRecentMessages = () => {
+    if (stopped) return Promise.resolve();
+    if (recentSyncPromise) return recentSyncPromise;
+    recentSyncPromise = fetchPrivateData("messages", { limit: String(MESSAGE_PAGE_SIZE) })
+      .then((rows) => {
+        if (stopped) return;
+        const recent = rows.map(formatMessage);
+        if (recent.length === 0) {
+          messageCache = [];
+        } else {
+          const cutoff = recent[0].createdAt?.getTime() || 0;
+          const older = messageCache.filter((message) => {
+            const createdAt = message.createdAt?.getTime() || 0;
+            return createdAt < cutoff;
+          });
+          const byId = new Map();
+          [...older, ...recent].forEach((message) => byId.set(message.id, message));
+          messageCache = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        }
+        publish();
+      })
+      .catch((error) => console.warn("recent message sync failed", error))
+      .finally(() => { recentSyncPromise = null; });
+    return recentSyncPromise;
+  };
+
+  const initialFetch = fetchMessages().then((list) => {
+    if (stopped) return;
+    messageCache = list;
+    publish();
+  });
+
+  // Realtime is only a lightweight invalidation signal. Fetch the changed
+  // row through the safe API instead of downloading the whole history again.
   const channel = supabase
-    .channel(`messages-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
-      fetchMessages().then(cb);
+    .channel(`messages-${subscribedChannel}`)
+    .on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "messages",
+      filter: `channel_id=eq.${subscribedChannel}`,
+    }, async (payload) => {
+      try {
+        await initialFetch.catch(() => {});
+        const id = payload.new?.id || payload.old?.id;
+        if (!id) return;
+        if (payload.eventType === "DELETE") {
+          messageCache = messageCache.filter((message) => message.id !== id);
+        } else {
+          const rows = await fetchPrivateData("messages", { id, limit: "1" });
+          const changed = rows[0] ? formatMessage(rows[0]) : null;
+          const index = messageCache.findIndex((message) => message.id === id);
+          if (!changed) {
+            if (index >= 0) messageCache.splice(index, 1);
+          } else if (index >= 0) {
+            messageCache[index] = changed;
+          } else {
+            messageCache.push(changed);
+          }
+          messageCache.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        }
+        publish();
+      } catch (error) {
+        console.warn("realtime message update failed", error);
+        await syncRecentMessages();
+      }
     })
-    .subscribe();
+    .subscribe((status) => {
+      if (status !== "SUBSCRIBED") return;
+      if (hasConnected) syncRecentMessages();
+      hasConnected = true;
+    });
 
-  return () => { supabase.removeChannel(channel); };
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") syncRecentMessages();
+  };
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  const syncTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") syncRecentMessages();
+  }, 5 * 60 * 1000);
+
+  return () => {
+    stopped = true;
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.clearInterval(syncTimer);
+    supabase.removeChannel(channel);
+  };
 }
 
 /* ---- Broadcast channel for instant updates ---- */
@@ -98,24 +230,17 @@ export function broadcastEmoji(emoji, x, h) {
 }
 
 async function fetchMessages() {
-  const { data } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("channel_id", channelId)
-    .order("created_at", { ascending: true })
-    .limit(2000);
-  return (data || []).map(formatMessage);
+  const data = await fetchPrivateData("messages", { limit: String(MESSAGE_PAGE_SIZE) });
+  return data.map(formatMessage);
 }
 
 export async function loadMoreMessages(beforeDate) {
-  const { data } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("channel_id", channelId)
-    .lt("created_at", beforeDate)
-    .order("created_at", { ascending: false })
-    .limit(500);
-  return (data || []).reverse().map(formatMessage);
+  const data = await fetchPrivateData("messages", { before: beforeDate, limit: String(MESSAGE_PAGE_SIZE) });
+  const older = data.map(formatMessage);
+  const byId = new Map(messageCache.map((message) => [message.id, message]));
+  older.forEach((message) => byId.set(message.id, message));
+  messageCache = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  return older;
 }
 
 function formatMessage(row) {
@@ -182,10 +307,7 @@ export async function removeMessage(id) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", channel_id: channelId }),
   });
-  if (!res.ok) {
-    // fallback direct (mock mode or admin)
-    await supabase.from("messages").delete().eq("id", id);
-  }
+  await requireApiSuccess(res, "message delete failed");
 }
 
 export async function softDeleteMessage(id) {
@@ -194,10 +316,7 @@ export async function softDeleteMessage(id) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", action: "soft-delete" }),
   });
-  if (!res.ok) {
-    // fallback for admin (uses adminDeleteMessage separately)
-    await supabase.from("messages").update({ deleted: true, text: "", image: null, gallery_id: null }).eq("id", id);
-  }
+  await requireApiSuccess(res, "message delete failed");
 }
 
 export async function editMessage(id, newText) {
@@ -206,9 +325,7 @@ export async function editMessage(id, newText) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", action: "edit", text: newText }),
   });
-  if (!res.ok) {
-    await supabase.from("messages").update({ text: newText, edited: true }).eq("id", id);
-  }
+  await requireApiSuccess(res, "message edit failed");
 }
 
 /* ---- Reactions ---- */
@@ -218,32 +335,16 @@ export async function addReaction(id, emoji, uid) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid, action: "react", emoji }),
   });
-  if (!res.ok) {
-    // fallback direct (for mock mode)
-    const { data } = await supabase.from("messages").select("reactions").eq("id", id).single();
-    const reactions = data?.reactions || {};
-    const key = `${uid}_${emoji.codePointAt(0).toString(16)}`;
-    if (reactions[key]) delete reactions[key];
-    else reactions[key] = emoji;
-    await supabase.from("messages").update({ reactions }).eq("id", id);
-  }
+  await requireApiSuccess(res, "reaction update failed");
 }
 
 export async function removeReaction(id, uid) {
-  // remove all reactions by this user — fetch, clear, update via API
-  const { data } = await supabase.from("messages").select("reactions").eq("id", id).single();
-  const reactions = data?.reactions || {};
-  Object.keys(reactions).forEach((key) => {
-    if (key.startsWith(`${uid}_`)) delete reactions[key];
-  });
   const res = await fetch("/api/messages", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid, action: "react-clear" }),
   });
-  if (!res.ok) {
-    await supabase.from("messages").update({ reactions }).eq("id", id);
-  }
+  await requireApiSuccess(res, "reaction clear failed");
 }
 
 /* ---- Blocked users ---- */
@@ -255,12 +356,13 @@ export function getBlockedUsers() {
 }
 
 export function subscribeBlocked(cb) {
+  const subscribedChannel = channelId;
   _blockedListeners.add(cb);
   fetchBlocked().then((list) => { _blockedList = list; cb(list); });
 
   const channel = supabase
-    .channel(`blocked-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "blocked" }, () => {
+    .channel(`blocked-${subscribedChannel}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "blocked", filter: `channel_id=eq.${subscribedChannel}` }, () => {
       fetchBlocked().then((list) => { _blockedList = list; _blockedListeners.forEach((c) => c(list)); });
     })
     .subscribe();
@@ -269,8 +371,8 @@ export function subscribeBlocked(cb) {
 }
 
 async function fetchBlocked() {
-  const { data } = await supabase.from("blocked").select("*").eq("channel_id", channelId);
-  return (data || []).map((b) => ({ uid: b.uid, fingerprint: b.fingerprint || "", reason: b.reason || "" }));
+  const data = await fetchPrivateData("blocked", { fingerprint: clientFingerprint });
+  return data.map((b) => ({ uid: b.uid, fingerprint: b.fingerprint || "", reason: b.reason || "" }));
 }
 
 export async function blockUser(uid, reason, fingerprint) {
@@ -302,12 +404,30 @@ export async function removeDm(id) {
 }
 
 export function subscribeDm(cb) {
-  fetchDm().then(cb);
+  const subscribedChannel = channelId;
+  let dmCache = [];
+  const initialFetch = fetchDm().then((list) => {
+    dmCache = list;
+    cb([...dmCache]);
+  });
 
   const channel = supabase
-    .channel(`dm-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "dm" }, () => {
-      fetchDm().then(cb);
+    .channel(`dm-${subscribedChannel}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "dm", filter: `channel_id=eq.${subscribedChannel}` }, async (payload) => {
+      await initialFetch.catch(() => {});
+      const row = payload.new;
+      const id = row?.id || payload.old?.id;
+      if (!id) return;
+      const index = dmCache.findIndex((item) => item.id === id);
+      if (payload.eventType === "DELETE") {
+        if (index >= 0) dmCache.splice(index, 1);
+      } else {
+        const changed = formatDm(row);
+        if (index >= 0) dmCache[index] = changed;
+        else dmCache.push(changed);
+        dmCache.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      }
+      cb([...dmCache]);
     })
     .subscribe();
 
@@ -315,15 +435,19 @@ export function subscribeDm(cb) {
 }
 
 async function fetchDm() {
-  const { data } = await supabase.from("dm").select("*").eq("channel_id", channelId).order("created_at", { ascending: true }).limit(500);
-  return (data || []).map((row) => ({
+  const data = await fetchPrivateData("dm");
+  return data.map(formatDm);
+}
+
+function formatDm(row) {
+  return {
     id: row.id,
     uid: row.uid,
     nick: row.nick,
     text: row.text,
     image: row.image,
     createdAt: row.created_at ? new Date(row.created_at) : null,
-  }));
+  };
 }
 
 /* ---- Gallery (uses Supabase Storage for files) ---- */
@@ -348,7 +472,7 @@ export async function saveToGallery(imageBlob) {
   const res = await fetch("/api/gallery", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: imageUrl, channel_id: channelId }),
+    body: JSON.stringify({ uid: currentUser?.id || "", image: imageUrl, channel_id: channelId }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "gallery save failed");
@@ -356,12 +480,31 @@ export async function saveToGallery(imageBlob) {
 }
 
 export function subscribeGallery(cb) {
-  fetchGallery().then(cb);
+  const subscribedChannel = channelId;
+  let galleryCache = [];
+  const initialFetch = fetchGallery().then((list) => {
+    galleryCache = list;
+    cb([...galleryCache]);
+  });
 
   const channel = supabase
-    .channel(`gallery-${channelId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "gallery" }, () => {
-      fetchGallery().then(cb);
+    .channel(`gallery-${subscribedChannel}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "gallery", filter: `channel_id=eq.${subscribedChannel}` }, async (payload) => {
+      await initialFetch.catch(() => {});
+      const row = payload.new;
+      const id = row?.id || payload.old?.id;
+      if (!id) return;
+      const index = galleryCache.findIndex((item) => item.id === id);
+      if (payload.eventType === "DELETE") {
+        if (index >= 0) galleryCache.splice(index, 1);
+      } else {
+        const changed = formatGalleryItem(row);
+        if (index >= 0) galleryCache[index] = changed;
+        else galleryCache.push(changed);
+        galleryCache.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        galleryCache = galleryCache.slice(0, 100);
+      }
+      cb([...galleryCache]);
     })
     .subscribe();
 
@@ -370,11 +513,15 @@ export function subscribeGallery(cb) {
 
 async function fetchGallery() {
   const { data } = await supabase.from("gallery").select("*").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(100);
-  return (data || []).map((row) => ({
+  return (data || []).map(formatGalleryItem);
+}
+
+function formatGalleryItem(row) {
+  return {
     id: row.id,
     image: row.image,
     createdAt: row.created_at ? new Date(row.created_at) : null,
-  }));
+  };
 }
 
 export async function removeFromGallery(id) {
@@ -383,15 +530,7 @@ export async function removeFromGallery(id) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
   });
-  if (!res.ok) {
-    // fallback direct delete
-    const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
-    if (data && data.image) {
-      const path = data.image.split("/media/")[1];
-      if (path) await supabase.storage.from("media").remove([path]);
-    }
-    await supabase.from("gallery").delete().eq("id", id);
-  }
+  await requireApiSuccess(res, "gallery delete failed");
 }
 
 /* ---- Notice ---- */
@@ -424,14 +563,8 @@ export function subscribeNotice(cb) {
 
 /* ---- Search (PostgreSQL full-text search) ---- */
 export async function searchMessages(query) {
-  const { data } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("channel_id", channelId)
-    .textSearch("text", query, { type: "websearch" })
-    .order("created_at", { ascending: false })
-    .limit(50);
-  return (data || []).map(formatMessage);
+  const data = await fetchPrivateData("search", { q: query });
+  return data.map(formatMessage);
 }
 
 /* ---- Passcode (public read) ---- */

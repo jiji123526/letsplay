@@ -20,15 +20,15 @@ export function initSearch() {
 let _getMessages = null;
 let _getAllMessages = null;
 let _searchServer = null;
-let _onServerResults = null;
+let _ensureMessageLoaded = null;
 let _banner = null;
 let _isMock = false;
 
-export function configureSearch({ getMessages, getAllMessages, searchServer, onServerResults, banner, isMock }) {
+export function configureSearch({ getMessages, getAllMessages, searchServer, ensureMessageLoaded, banner, isMock }) {
   _getMessages = getMessages;
   _getAllMessages = getAllMessages;
   _searchServer = searchServer;
-  _onServerResults = onServerResults;
+  _ensureMessageLoaded = ensureMessageLoaded;
   _banner = banner;
   _isMock = isMock;
 }
@@ -80,7 +80,6 @@ function toggleSearchBar() {
       searchInput.blur(); // dismiss keyboard
       if (searchResults.length === 0) {
         performSearch(searchInput.value.trim());
-        if (searchResults.length > 0) navigateSearch(-1);
       } else {
         navigateSearch(-1);
       }
@@ -98,7 +97,6 @@ function toggleSearchBar() {
     const query = searchInput.value.trim();
     if (query && searchResults.length === 0) {
       performSearch(query);
-      if (searchResults.length > 0) navigateSearch(-1);
     }
   });
 
@@ -112,7 +110,6 @@ function toggleSearchBar() {
         const query = searchInput.value.trim();
         if (query && searchResults.length === 0) {
           performSearch(query);
-          if (searchResults.length > 0) navigateSearch(-1);
         }
       }
       prevHeight = newHeight;
@@ -145,49 +142,22 @@ async function performSearch(query) {
 
   const messages = _getMessages ? _getMessages() : [];
   const queryLower = query.toLowerCase();
+  let matchedMessages = messages.filter((m) => m.text && m.text.toLowerCase().includes(queryLower));
 
-  messages.forEach((m) => {
-    if (m.text && m.text.toLowerCase().includes(queryLower)) {
-      const row = document.getElementById(`msg-${m.id}`);
-      if (row) {
-        const bubble = row.querySelector(".bubble");
-        if (bubble) {
-          highlightTextInBubble(bubble, query);
-          searchResults.push(row);
-        }
-      }
-    }
-  });
-
-  // if no local results, try server-side search
-  if (searchResults.length === 0 && !_isMock && _searchServer) {
+  // Always ask the server so the arrows also know about unloaded old matches.
+  if (!_isMock && _searchServer) {
     try {
       const serverResults = await _searchServer(query);
-      if (serverResults.length > 0) {
-        if (_onServerResults) _onServerResults(serverResults);
-        // re-search locally now that messages are loaded
-        const updatedMessages = _getMessages ? _getMessages() : [];
-        updatedMessages.forEach((m) => {
-          if (m.text && m.text.toLowerCase().includes(queryLower)) {
-            const row = document.getElementById(`msg-${m.id}`);
-            if (row) {
-              const bubble = row.querySelector(".bubble");
-              if (bubble) {
-                highlightTextInBubble(bubble, query);
-                searchResults.push(row);
-              }
-            }
-          }
-        });
-      }
+      const byId = new Map(matchedMessages.map((message) => [message.id, message]));
+      serverResults.forEach((message) => byId.set(message.id, message));
+      matchedMessages = [...byId.values()];
     } catch (e) { /* server search failed */ }
   }
 
+  searchResults = matchedMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   if (searchResults.length > 0) {
-    // sort by visual DOM position (top to bottom)
-    searchResults.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-    searchIndex = searchResults.length; // start at bottom (newest visually)
-    highlightCurrent(true); // initial = don't scroll if already visible
+    searchIndex = searchResults.length - 1;
+    await highlightCurrent(true);
   } else if (_banner) {
     _banner("검색 결과가 없습니다", "#666");
   }
@@ -200,27 +170,49 @@ export function highlightTextInBubble(bubble, query) {
   while (walker.nextNode()) textNodes.push(walker.currentNode);
 
   textNodes.forEach((node) => {
-    if (regex.test(node.textContent)) {
-      const span = document.createElement("span");
-      span.innerHTML = node.textContent.replace(regex, '<mark class="search-match">$1</mark>');
-      node.replaceWith(span);
+    if (node.textContent.toLowerCase().includes(query.toLowerCase())) {
+      const fragment = document.createDocumentFragment();
+      let lastIndex = 0;
+      for (const match of node.textContent.matchAll(new RegExp(regex.source, regex.flags))) {
+        if (match.index > lastIndex) fragment.appendChild(document.createTextNode(node.textContent.slice(lastIndex, match.index)));
+        const mark = document.createElement("mark");
+        mark.className = "search-match";
+        mark.textContent = match[0];
+        fragment.appendChild(mark);
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < node.textContent.length) fragment.appendChild(document.createTextNode(node.textContent.slice(lastIndex)));
+      node.replaceWith(fragment);
     }
   });
 }
 
-function navigateSearch(direction) {
+async function navigateSearch(direction) {
   if (searchResults.length === 0) return;
-  searchResults[searchIndex]?.querySelector(".search-active")?.classList.remove("search-active");
+  document.querySelector(".search-active")?.classList.remove("search-active");
 
   searchIndex += direction;
   if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
   if (searchIndex < 0) searchIndex = 0;
 
-  highlightCurrent();
+  await highlightCurrent();
 }
 
-function highlightCurrent(initial) {
-  const row = searchResults[searchIndex];
+async function highlightCurrent(initial) {
+  const message = searchResults[searchIndex];
+  if (!message) return;
+  if (!document.getElementById(`msg-${message.id}`) && _ensureMessageLoaded) {
+    await _ensureMessageLoaded(message);
+  }
+  clearHighlights();
+  const query = document.querySelector(".search-input")?.value.trim();
+  const loadedMessages = _getMessages ? _getMessages() : [];
+  loadedMessages.forEach((loaded) => {
+    if (!query || !loaded.text?.toLowerCase().includes(query.toLowerCase())) return;
+    const bubble = document.getElementById(`msg-${loaded.id}`)?.querySelector(".bubble");
+    if (bubble) highlightTextInBubble(bubble, query);
+  });
+  const row = document.getElementById(`msg-${message.id}`);
   if (!row) return;
   const match = row.querySelector(".search-match");
   if (match) match.classList.add("search-active");
@@ -245,7 +237,6 @@ export function restoreSearchHighlights(messages) {
 
   const query = searchInput.value.trim();
   const queryLower = query.toLowerCase();
-  searchResults = [];
 
   messages.forEach((m) => {
     if (m.text && m.text.toLowerCase().includes(queryLower)) {
@@ -254,7 +245,6 @@ export function restoreSearchHighlights(messages) {
         const bubble = row.querySelector(".bubble");
         if (bubble) {
           highlightTextInBubble(bubble, query);
-          searchResults.push(row);
         }
       }
     }
@@ -263,7 +253,8 @@ export function restoreSearchHighlights(messages) {
   if (searchResults.length > 0) {
     if (searchIndex >= searchResults.length) searchIndex = searchResults.length - 1;
     if (searchIndex < 0) searchIndex = searchResults.length - 1;
-    const row = searchResults[searchIndex];
+    const activeMessage = searchResults[searchIndex];
+    const row = activeMessage ? document.getElementById(`msg-${activeMessage.id}`) : null;
     const match = row?.querySelector(".search-match");
     if (match) match.classList.add("search-active");
   }

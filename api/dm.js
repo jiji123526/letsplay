@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isRateLimited } from "../server/rate-limit.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "https://wpwlqpkawssrywlqgncg.supabase.co",
@@ -11,13 +12,22 @@ export default async function handler(req, res) {
   }
 
   const { uid, nick, text, image, channel_id } = req.body;
+  if (!uid || !/^[a-f0-9-]{36}$/i.test(uid)) {
+    return res.status(400).json({ error: "invalid uid" });
+  }
+  const requestIp = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+  if (isRateLimited(`dm:${requestIp}`, 5, 10000)) {
+    return res.status(429).json({ error: "rate_limited" });
+  }
 
-  if (!uid || !channel_id) {
+  if (!channel_id) {
     return res.status(400).json({ error: "missing fields" });
   }
 
   const row = {
+    // This UID is a local browser identifier, not an authenticated identity.
     uid,
+    auth_uid: null,
     nick: nick || null,
     text: text || "",
     image: image || null,

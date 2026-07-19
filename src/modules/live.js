@@ -45,9 +45,10 @@ export function showLiveExitBanner() {
   bannerEl.className = "live-exit-banner";
   bannerEl.innerHTML = `
     <span class="live-banner-dot">●</span>
-    <span class="live-banner-text">라이브 채팅 참여중: ${liveTitle}</span>
+    <span class="live-banner-text"></span>
     <button class="live-exit-btn">${isAdmin ? "종료" : "나가기"}</button>
   `;
+  bannerEl.querySelector(".live-banner-text").textContent = `라이브 채팅 참여중: ${liveTitle}`;
   bannerEl.querySelector(".live-exit-btn").addEventListener("click", async () => {
     if (isAdmin) {
       _ctx.showConfirmDialog("라이브 종료", "라이브를 종료하시겠습니까?<br>모든 메시지가 삭제됩니다.", async () => {
@@ -91,7 +92,7 @@ export function showLivePopup() {
   popup.innerHTML = `
     <div class="live-popup-content">
       <div class="live-popup-icon"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/></svg></div>
-      <div class="live-popup-title">${liveTitle}</div>
+      <div class="live-popup-title"></div>
       <div class="live-popup-desc">라이브 채팅이 시작되었습니다.<br>참여하시겠습니까?<br>라이브 종료 시 모든 메시지가 삭제됩니다.</div>
       <div class="live-popup-buttons">
         <button class="live-popup-no">안할래</button>
@@ -99,6 +100,7 @@ export function showLivePopup() {
       </div>
     </div>
   `;
+  popup.querySelector(".live-popup-title").textContent = liveTitle;
 
   popup.querySelector(".live-popup-no").addEventListener("click", () => { popup.remove(); showLiveBanner(); });
   popup.querySelector(".live-popup-yes").addEventListener("click", () => {
@@ -120,9 +122,10 @@ export function showLiveBanner() {
   bannerEl.className = "live-banner";
   bannerEl.innerHTML = `
     <span class="live-banner-dot">●</span>
-    <span class="live-banner-text">라이브 채팅 진행중: ${liveTitle}</span>
+    <span class="live-banner-text"></span>
     <button class="live-banner-join">참여</button>
   `;
+  bannerEl.querySelector(".live-banner-text").textContent = `라이브 채팅 진행중: ${liveTitle}`;
 
   bannerEl.querySelector(".live-banner-join").addEventListener("click", () => {
     bannerEl.remove();

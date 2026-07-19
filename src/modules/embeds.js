@@ -99,22 +99,38 @@ function renderPreviewCard(data, bubble) {
   card.target = "_blank";
   card.rel = "noopener";
 
-  let html = "";
   if (data.video) {
-    html += `<video class="link-preview-video" src="${data.video}" poster="${data.image || ""}" controls playsinline preload="metadata"></video>`;
+    const video = document.createElement("video");
+    video.className = "link-preview-video";
+    video.src = data.video;
+    video.poster = data.image || "";
+    video.controls = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    card.appendChild(video);
     card.addEventListener("click", (e) => {
       if (e.target.tagName === "VIDEO") e.preventDefault();
     });
   } else if (data.image) {
-    html += `<img class="link-preview-img" src="${data.image}" alt="" />`;
+    const image = document.createElement("img");
+    image.className = "link-preview-img";
+    image.src = data.image;
+    image.alt = "";
+    card.appendChild(image);
   }
-  html += `<div class="link-preview-body">`;
-  if (data.siteName) html += `<div class="link-preview-site">${data.siteName}</div>`;
-  if (data.title) html += `<div class="link-preview-title">${data.title}</div>`;
-  if (data.description) html += `<div class="link-preview-desc">${data.description.slice(0, 100)}${data.description.length > 100 ? "…" : ""}</div>`;
-  html += `</div>`;
-
-  card.innerHTML = html;
+  const body = document.createElement("div");
+  body.className = "link-preview-body";
+  const addText = (className, value) => {
+    if (!value) return;
+    const element = document.createElement("div");
+    element.className = className;
+    element.textContent = value;
+    body.appendChild(element);
+  };
+  addText("link-preview-site", data.siteName);
+  addText("link-preview-title", data.title);
+  if (data.description) addText("link-preview-desc", `${data.description.slice(0, 100)}${data.description.length > 100 ? "…" : ""}`);
+  card.appendChild(body);
 
   // hide the specific link that this preview replaces
   bubble.querySelectorAll(".bubble-link").forEach((link) => {

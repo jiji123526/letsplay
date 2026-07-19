@@ -56,14 +56,20 @@ export function showFullImage(src, meta, onNavigate) {
   if (meta) {
     const info = document.createElement("div");
     info.className = "img-overlay-info";
-    let html = "";
-    if (meta.caption) html += `<div class="img-overlay-caption">${meta.caption}</div>`;
+    if (meta.caption) {
+      const caption = document.createElement("div");
+      caption.className = "img-overlay-caption";
+      caption.textContent = meta.caption;
+      info.appendChild(caption);
+    }
     if (meta.date) {
       const d = new Date(meta.date);
       const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
-      html += `<button class="img-overlay-date">${dateStr} →</button>`;
+      const dateButton = document.createElement("button");
+      dateButton.className = "img-overlay-date";
+      dateButton.textContent = `${dateStr} →`;
+      info.appendChild(dateButton);
     }
-    info.innerHTML = html;
     overlay.appendChild(info);
 
     const dateBtn = info.querySelector(".img-overlay-date");

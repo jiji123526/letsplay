@@ -1,3 +1,6 @@
 node_modules
 dist
 server.log
+.vercel
+.env*.local
+.env*

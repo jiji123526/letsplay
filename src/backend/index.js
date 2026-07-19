@@ -38,6 +38,8 @@ export const subscribeNotice    = impl.subscribeNotice;
 export const searchMessages     = impl.searchMessages || (async () => []);
 export const loadMoreMessages   = impl.loadMoreMessages || (async () => []);
 export const setChannel         = impl.setChannel || (() => {});
+export const setAdminCredential = impl.setAdminCredential || (() => {});
+export const setClientFingerprint = impl.setClientFingerprint || (() => {});
 export const getChannelPasscode = impl.getChannelPasscode || (async () => null);
 export const getLiveStatus      = impl.getLiveStatus || (async () => false);
 export const subscribeLiveStatus = impl.subscribeLiveStatus || (() => () => {});

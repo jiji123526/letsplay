@@ -57,7 +57,10 @@ export function showLinks(allMessages, onNavigate) {
       const card = document.createElement("div");
       card.className = "links-card";
       card.style.cursor = "pointer";
-      card.innerHTML = `<div class="links-card-url">${link.url}</div>`;
+      const urlEl = document.createElement("div");
+      urlEl.className = "links-card-url";
+      urlEl.textContent = link.url;
+      card.appendChild(urlEl);
       card.addEventListener("click", () => {
         panel.remove();
         onNavigate(link.msgId);
@@ -70,13 +73,28 @@ export function showLinks(allMessages, onNavigate) {
         if (res.ok) {
           const data = await res.json();
           if (data.title || data.image) {
-            let html = "";
-            if (data.image) html += `<img class="links-card-img" src="${data.image}" />`;
-            html += `<div class="links-card-body">`;
-            if (data.siteName) html += `<div class="links-card-site">${data.siteName}</div>`;
-            if (data.title) html += `<div class="links-card-title">${data.title}</div>`;
-            html += `</div>`;
-            card.innerHTML = html;
+            card.replaceChildren();
+            if (data.image) {
+              const image = document.createElement("img");
+              image.className = "links-card-img";
+              image.src = data.image;
+              card.appendChild(image);
+            }
+            const body = document.createElement("div");
+            body.className = "links-card-body";
+            if (data.siteName) {
+              const site = document.createElement("div");
+              site.className = "links-card-site";
+              site.textContent = data.siteName;
+              body.appendChild(site);
+            }
+            if (data.title) {
+              const title = document.createElement("div");
+              title.className = "links-card-title";
+              title.textContent = data.title;
+              body.appendChild(title);
+            }
+            card.appendChild(body);
           }
         }
       } catch (e) { /* keep URL fallback */ }

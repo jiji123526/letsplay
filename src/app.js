@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, getChannelPasscode, subscribeLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -47,11 +47,16 @@ async function hashString(str) {
 let myUid   = null;
 let myNick  = "";          // derived from uid on sign-in (anonymous tag)
 const myFingerprint = generateFingerprint();
+setClientFingerprint(myFingerprint);
 let isAdmin = localStorage.getItem("isAdmin") === "true";
 // restore admin passcode for API calls
 if (isAdmin) {
   const storedPass = localStorage.getItem("ap");
-  if (storedPass) setAdminPasscode(atob(storedPass));
+  if (storedPass) {
+    const passcode = atob(storedPass);
+    setAdminPasscode(passcode);
+    setAdminCredential(passcode);
+  }
 }
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
@@ -130,7 +135,11 @@ function patchReactions() {
       const data = counts[emoji];
       const pill = document.createElement("button");
       pill.className = `reaction-pill${data.mine ? " mine" : ""}`;
-      pill.innerHTML = `${emoji} <span class="reaction-count">${data.count}</span>`;
+      pill.appendChild(document.createTextNode(`${emoji} `));
+      const count = document.createElement("span");
+      count.className = "reaction-count";
+      count.textContent = String(data.count);
+      pill.appendChild(count);
       pill.addEventListener("click", (e) => { e.stopPropagation(); addReactionBackend(m.id, emoji, reactUid); });
       badge.appendChild(pill);
     });
@@ -145,6 +154,83 @@ function patchReactions() {
 
 function saveReportedIds() {
   localStorage.setItem("reportedMsgIds", JSON.stringify([...reportedMsgIds]));
+}
+
+function appendTextWithLinks(container, text, urlRegex) {
+  let lastIndex = 0;
+  for (const match of text.matchAll(urlRegex)) {
+    if (match.index > lastIndex) container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    const value = match[0];
+    const link = document.createElement("a");
+    link.href = value.startsWith("http") ? value : `https://${value}`;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.className = "bubble-link";
+    link.textContent = value;
+    container.appendChild(link);
+    lastIndex = match.index + value.length;
+  }
+  if (lastIndex < text.length) container.appendChild(document.createTextNode(text.slice(lastIndex)));
+}
+
+function messageRenderSignature(message) {
+  return JSON.stringify({
+    id: message.id,
+    uid: message.uid,
+    text: message.text,
+    is_admin: message.is_admin,
+    replyTo: message.replyTo,
+    report: message.report,
+    reportedMsgId: message.reportedMsgId,
+    galleryId: message.galleryId,
+    dm: message.dm,
+    deleted: message.deleted,
+    edited: message.edited,
+    reactions: message.reactions,
+    image: message.image,
+    imageW: message.imageW,
+    imageH: message.imageH,
+    createdAt: message.createdAt instanceof Date ? message.createdAt.getTime() : null,
+  });
+}
+
+function tryAppendNewMessages(previousList, nextList) {
+  if (isAdmin || initialLoad || document.querySelector(".search-bar")) return false;
+  if (!hasScrolledInitial || previousList.length === 0 || nextList.length <= previousList.length) return false;
+  if (previousList.some((message) => message.replyTo || message.report || message.dm)) return false;
+
+  for (let index = 0; index < previousList.length; index++) {
+    if (previousList[index].id !== nextList[index]?.id) return false;
+    if (messageRenderSignature(previousList[index]) !== messageRenderSignature(nextList[index])) return false;
+  }
+
+  const added = nextList.slice(previousList.length);
+  if (added.some((message) => message.replyTo || message.report || message.dm)) return false;
+  const renderedRows = messagesEl.querySelectorAll(".row[id]");
+  if (renderedRows.length !== previousList.length) return false;
+
+  // Consecutive grouped messages change the previous bubble's classes, so use
+  // the full renderer for that less common case.
+  const previousLast = previousList[previousList.length - 1];
+  const firstAdded = added[0];
+  const previousCanGroup = previousLast?.is_admin || previousLast?.uid === myUid;
+  if (previousCanGroup && previousLast?.uid === firstAdded?.uid) return false;
+
+  const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
+  const anchor = messagesEl.querySelector(".scroll-anchor");
+  anchor?.remove();
+
+  added.forEach((message, addedIndex) => {
+    const absoluteIndex = previousList.length + addedIndex;
+    renderMessage(message, nextList[absoluteIndex - 1] || null, nextList[absoluteIndex + 1] || null, false, null);
+  });
+
+  const nextAnchor = anchor || document.createElement("div");
+  nextAnchor.className = "scroll-anchor";
+  messagesEl.appendChild(nextAnchor);
+  prevMessageIds = nextList.filter((message) => !message.report).map((message) => message.id);
+  if (nearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+  return true;
 }
 
 /* ============================================================
@@ -507,11 +593,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
       if (m.text.match(urlRegex)) {
         const urls = m.text.match(urlRegex);
-        // render text with clickable links (add https:// if missing)
-        bubble.innerHTML = m.text.replace(urlRegex, (match) => {
-          const href = match.startsWith("http") ? match : `https://${match}`;
-          return `<a href="${href}" target="_blank" rel="noopener" class="bubble-link">${match}</a>`;
-        });
+        appendTextWithLinks(bubble, m.text, urlRegex);
         // embed or preview for each URL
         urls.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
@@ -676,7 +758,11 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         const data = counts[emoji];
         const pill = document.createElement("button");
         pill.className = `reaction-pill${data.mine ? " mine" : ""}`;
-        pill.innerHTML = `${emoji} <span class="reaction-count">${data.count}</span>`;
+        pill.appendChild(document.createTextNode(`${emoji} `));
+        const count = document.createElement("span");
+        count.className = "reaction-count";
+        count.textContent = String(data.count);
+        pill.appendChild(count);
         pill.addEventListener("click", (e) => {
           e.stopPropagation();
           // toggle this specific emoji for current user
@@ -1002,14 +1088,28 @@ configureSearch({
   getMessages: () => messages,
   getAllMessages: () => allMessages,
   searchServer: searchMessages,
-  onServerResults: (serverResults) => {
-    const newMsgs = serverResults.filter((m) => !allMessages.find((a) => a.id === m.id));
-    if (newMsgs.length > 0) {
-      allMessages = [...newMsgs, ...allMessages];
-      allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      refilterMessages();
-      render();
+  ensureMessageLoaded: async (target) => {
+    const targetTime = target.createdAt?.getTime();
+    if (!targetTime || allMessages.some((message) => message.id === target.id)) return;
+    let attempts = 0;
+    while (attempts < 100) {
+      if (allMessages.some((message) => message.id === target.id)) break;
+      const oldest = allMessages.find((message) => message.createdAt);
+      if (!oldest?.createdAt || oldest.createdAt.getTime() <= targetTime) break;
+      const older = await loadMoreMessages(oldest.createdAt.toISOString());
+      if (older.length === 0) break;
+      const byId = new Map(allMessages.map((message) => [message.id, message]));
+      older.forEach((message) => byId.set(message.id, message));
+      allMessages = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      attempts += 1;
     }
+    // Timestamp ties on a page boundary can leave out the exact matched row.
+    if (!allMessages.some((message) => message.id === target.id)) {
+      allMessages.push(target);
+      allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    }
+    refilterMessages();
+    render();
   },
   banner,
   isMock: IS_MOCK,
@@ -1022,7 +1122,7 @@ initAuth().then((uid) => {
   showEntryGate();          // pick a role (anon by default), then enter
 }).catch((e) => {
   console.error("auth failed", e);
-  banner(IS_MOCK ? "초기화 실패" : "익명 로그인 실패 — Authentication에서 Anonymous를 켜세요");
+  banner("초기화 실패");
 });
 
 /* ============================================================
@@ -1238,7 +1338,7 @@ async function doSetNotice(text) {
 
 async function deleteMessageWithReplies(msgId) {
   const msg = messages.find((m) => m.id === msgId);
-  if (msg && msg.galleryId) {
+  if (isAdmin && msg && msg.galleryId) {
     await doDeleteGallery(msg.galleryId);
   }
   // collect all IDs to delete
@@ -1461,7 +1561,8 @@ function setReply(msg) {
     document.querySelector(".composer").insertAdjacentElement("beforebegin", bar);
   }
   const preview = msg.text.length > 30 ? msg.text.slice(0, 30) + "…" : msg.text;
-  bar.innerHTML = `<svg class="reply-bar-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h14a4 4 0 0 1 4 4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reply-bar-text">${preview}</span><button class="reply-bar-close">✕</button>`;
+  bar.innerHTML = `<svg class="reply-bar-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h14a4 4 0 0 1 4 4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reply-bar-text"></span><button class="reply-bar-close">✕</button>`;
+  bar.querySelector(".reply-bar-text").textContent = preview;
   bar.querySelector(".reply-bar-close").addEventListener("click", clearReply);
   document.documentElement.style.setProperty("--reply-bar-height", `${bar.getBoundingClientRect().height}px`);
   input.focus();
@@ -1719,8 +1820,8 @@ function showNoticeInput() {
   dialog.innerHTML = `
     <div class="edit-dialog-content">
       <div class="edit-dialog-title">공지 설정</div>
-      <input class="notice-edit-title" type="text" placeholder="공지 제목 (비우면 공지 삭제)" value="${currentTitle.replace(/"/g, "&quot;")}" />
-      <textarea class="edit-dialog-input" rows="4" placeholder="공지 내용 (선택사항)">${currentBody}</textarea>
+      <input class="notice-edit-title" type="text" placeholder="공지 제목 (비우면 공지 삭제)" />
+      <textarea class="edit-dialog-input" rows="4" placeholder="공지 내용 (선택사항)"></textarea>
       <div class="edit-dialog-buttons">
         <button class="edit-dialog-cancel">취소</button>
         <button class="edit-dialog-save">저장</button>
@@ -1730,6 +1831,8 @@ function showNoticeInput() {
 
   const titleInput = dialog.querySelector(".notice-edit-title");
   const bodyInput = dialog.querySelector(".edit-dialog-input");
+  titleInput.value = currentTitle;
+  bodyInput.value = currentBody;
 
   dialog.querySelector(".edit-dialog-save").addEventListener("click", () => {
     const title = titleInput.value.trim();
@@ -1799,7 +1902,7 @@ function renderNoticeBanner() {
 
   let html = `
     <span class="notice-banner-icon"><svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M5.063,19.369l0.521,4.602c0.007,0.067,0.021,0.133,0.042,0.197c0.412,1.266,1.591,2.072,2.855,2.072c0.308,0,0.619-0.048,0.927-0.148c1.572-0.512,2.436-2.208,1.924-3.781l-0.83-2.551h0.261l7.789,3.895c0.142,0.07,0.294,0.105,0.447,0.105c0.183,0,0.365-0.05,0.525-0.149C19.82,23.429,20,23.107,20,22.76v-4.142c1.721-0.447,3-2,3-3.858s-1.279-3.411-3-3.858V6.76c0-0.347-0.18-0.668-0.475-0.851c-0.295-0.183-0.663-0.199-0.973-0.044L10.764,9.76H7c-2.757,0-5,2.243-5,5C2,16.831,3.265,18.611,5.063,19.369z M9.43,22.93c0.171,0.524-0.116,1.089-0.641,1.26c-0.499,0.163-1.032-0.089-1.231-0.562L7.119,19.76h1.279L9.43,22.93z M21,14.76c0,0.737-0.405,1.375-1,1.722v-3.443C20.595,13.385,21,14.023,21,14.76z M18,21.142l-6-3v-6.764l6-3V21.142z M7,11.76h3v6H7c-1.654,0-3-1.346-3-3S5.346,11.76,7,11.76z"/><path d="M27,15.76h2c0.553,0,1-0.448,1-1s-0.447-1-1-1h-2c-0.553,0-1,0.448-1,1S26.447,15.76,27,15.76z"/><path d="M27,10.467c0.256,0,0.512-0.098,0.707-0.293l1.414-1.414c0.391-0.391,0.391-1.023,0-1.414s-1.023-0.391-1.414,0L26.293,8.76c-0.391,0.391-0.391,1.023,0,1.414C26.488,10.37,26.744,10.467,27,10.467z"/><path d="M27.707,22.174c0.195,0.195,0.451,0.293,0.707,0.293s0.512-0.098,0.707-0.293c0.391-0.391,0.391-1.023,0-1.414l-1.414-1.414c-0.391-0.391-1.023-0.391-1.414,0s-0.391,1.023,0,1.414L27.707,22.174z"/></svg></span>
-    <span class="notice-banner-title">${title}</span>
+    <span class="notice-banner-title"></span>
   `;
 
   if (body) {
@@ -1808,6 +1911,7 @@ function renderNoticeBanner() {
   html += `<button class="notice-banner-close">✕</button>`;
 
   banner.innerHTML = html;
+  banner.querySelector(".notice-banner-title").textContent = title;
 
   if (body) {
     const bodyEl = document.createElement("div");
@@ -2041,26 +2145,19 @@ function refilterMessages() {
         localStorage.setItem("isAdmin", "false");
         localStorage.removeItem("ap");
         setAdminPasscode(null);
-        checkIfBlocked();
-        refilterMessages();
-        render();
-        if (inLiveMode) showLiveExitBanner();
-        banner("관리자 모드 해제");
+        setAdminCredential(null);
+        location.reload();
       } else {
         const pass = prompt("관리자 비밀번호:");
         if (pass) {
           const valid = IS_MOCK ? true : await verifyAdmin(pass);
           if (valid === true) {
             setAdminPasscode(pass);
+            setAdminCredential(pass);
             isAdmin = true;
             localStorage.setItem("isAdmin", "true");
             localStorage.setItem("ap", btoa(pass));
-            checkIfBlocked();
-            refilterMessages();
-            render();
-            syncAdminColor();
-            if (inLiveMode) showLiveExitBanner();
-            banner("관리자 모드 활성화");
+            location.reload();
           } else if (valid === "rate_limited") {
             banner("그만해라");
           } else {
@@ -2427,10 +2524,13 @@ function showEmojiPresetPanel() {
     listEl.innerHTML = emojis.map((e, i) => `
       <div class="emoji-preset-item" data-idx="${i}" draggable="true">
         <span class="emoji-preset-drag">☰</span>
-        <span class="banned-word-text" style="font-size:calc(var(--bubble-font-size, 17px) + 4px)">${e}</span>
+        <span class="banned-word-text" style="font-size:calc(var(--bubble-font-size, 17px) + 4px)"></span>
         <button class="banned-word-remove" data-idx="${i}">✕</button>
       </div>
     `).join("");
+    listEl.querySelectorAll(".emoji-preset-item").forEach((item, i) => {
+      item.querySelector(".banned-word-text").textContent = emojis[i];
+    });
 
     // drag-to-reorder
     let dragIdx = null;
@@ -2720,11 +2820,14 @@ function showBannedWordsPanel() {
       ? '<div style="color:var(--meta);font-size:var(--bubble-font-size, 13px);text-align:center;padding:12px 0;">등록된 금지어가 없습니다</div>'
       : words.map((w, i) => `
         <div class="banned-word-item">
-          <span class="banned-word-text">${w.word}</span>
+          <span class="banned-word-text"></span>
           <span class="banned-word-expiry">${formatExpiry(w.expires)}</span>
           <button class="banned-word-remove" data-idx="${i}">✕</button>
         </div>
       `).join("");
+    listEl.querySelectorAll(".banned-word-item").forEach((item, i) => {
+      item.querySelector(".banned-word-text").textContent = words[i].word;
+    });
   }
   renderWords();
 
@@ -2795,22 +2898,40 @@ function showBlockedPanel() {
         <h3>차단된 사용자</h3>
         <button class="blocked-panel-close">✕</button>
       </div>
-      <div class="blocked-panel-list">
-        ${blockedList.length === 0
-          ? '<div class="blocked-panel-empty">차단된 사용자가 없습니다</div>'
-          : blockedList.map((b) => `
-            <div class="blocked-panel-item">
-              <div class="blocked-panel-info">
-                <span class="blocked-panel-uid">익명#${b.uid.slice(-4)}</span>
-                ${b.reason ? `<span class="blocked-panel-reason">"${b.reason}"</span>` : ""}
-              </div>
-              <button class="blocked-panel-unblock" data-uid="${b.uid}">차단 해제</button>
-            </div>
-          `).join("")
-        }
-      </div>
+      <div class="blocked-panel-list"></div>
     </div>
   `;
+
+  const listEl = panel.querySelector(".blocked-panel-list");
+  if (blockedList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "blocked-panel-empty";
+    empty.textContent = "차단된 사용자가 없습니다";
+    listEl.appendChild(empty);
+  } else {
+    blockedList.forEach((blocked) => {
+      const item = document.createElement("div");
+      item.className = "blocked-panel-item";
+      const info = document.createElement("div");
+      info.className = "blocked-panel-info";
+      const uid = document.createElement("span");
+      uid.className = "blocked-panel-uid";
+      uid.textContent = `익명#${String(blocked.uid).slice(-4)}`;
+      info.appendChild(uid);
+      if (blocked.reason) {
+        const reason = document.createElement("span");
+        reason.className = "blocked-panel-reason";
+        reason.textContent = `"${blocked.reason}"`;
+        info.appendChild(reason);
+      }
+      const button = document.createElement("button");
+      button.className = "blocked-panel-unblock";
+      button.dataset.uid = blocked.uid;
+      button.textContent = "차단 해제";
+      item.append(info, button);
+      listEl.appendChild(item);
+    });
+  }
 
   panel.querySelector(".blocked-panel-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
   panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
@@ -2882,6 +3003,7 @@ function startChat() {
   let galleryLoaded = false;
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); blockedFingerprints = new Set(list.filter(b => b.fingerprint).map(b => b.fingerprint)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   subscribe((list) => {
+    const previousMessages = messages;
     allMessages = list;
     // filter out report messages for display
     if (!isAdmin) {
@@ -2896,21 +3018,22 @@ function startChat() {
     // check if only reactions changed (same message count/ids)
     if (canPatchReactions(list)) {
       patchReactions();
+    } else if (tryAppendNewMessages(previousMessages, messages)) {
+      // Common fast path: keep existing DOM and append only new rows.
     } else {
       debouncedRender();
     }
   });
-  // subscribe to DMs (admin sees them in the chat)
-  subscribeDm((list) => {
-    dmMessages = list;
-    // re-merge for admin view
-    if (isAdmin) {
+  // DMs are moderation data and are fetched only for a verified admin.
+  if (isAdmin) {
+    subscribeDm((list) => {
+      dmMessages = list;
       const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
-    }
-    if (!initialLoad) debouncedRender();
-  });
+      if (!initialLoad) debouncedRender();
+    });
+  }
   // subscribe to gallery
   subscribeGallery((list) => { galleryItems = list; if (!galleryLoaded) { galleryLoaded = true; render(); } else { debouncedRender(); } });
   // subscribe only to the active normal/live channel notice
@@ -2963,21 +3086,32 @@ function startChat() {
 
   // load more messages when scrolling to top
   let loadingMore = false;
+  let hasMoreMessages = true;
   messagesEl.addEventListener("scroll", async () => {
-    if (messagesEl.scrollTop < 50 && !loadingMore && messages.length > 0) {
-      const oldest = messages.find((m) => m.createdAt);
+    if (messagesEl.scrollTop < 50 && !loadingMore && hasMoreMessages && allMessages.length > 0) {
+      const oldest = allMessages.find((m) => m.createdAt);
       if (!oldest || !oldest.createdAt) return;
       loadingMore = true;
-      const older = await loadMoreMessages(oldest.createdAt.toISOString());
-      if (older.length > 0) {
-        const prevHeight = messagesEl.scrollHeight;
-        allMessages = [...older, ...allMessages];
-        refilterMessages();
-        render();
-        // maintain scroll position
-        messagesEl.scrollTop = messagesEl.scrollHeight - prevHeight;
+      const prevHeight = messagesEl.scrollHeight;
+      const prevScrollTop = messagesEl.scrollTop;
+      try {
+        const older = await loadMoreMessages(oldest.createdAt.toISOString());
+        if (older.length < 100) hasMoreMessages = false;
+        if (older.length > 0) {
+          const byId = new Map(allMessages.map((message) => [message.id, message]));
+          older.forEach((message) => byId.set(message.id, message));
+          allMessages = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          refilterMessages();
+          render();
+          // Preserve the item that was at the top of the viewport.
+          messagesEl.scrollTop = messagesEl.scrollHeight - prevHeight + prevScrollTop;
+        }
+      } catch (error) {
+        console.warn("older message load failed", error);
+        banner("이전 메시지를 불러오지 못했습니다");
+      } finally {
+        loadingMore = false;
       }
-      loadingMore = false;
     }
   });
 }

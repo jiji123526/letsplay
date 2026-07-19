@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isRateLimited } from "../server/rate-limit.js";
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "https://wpwlqpkawssrywlqgncg.supabase.co",
@@ -7,6 +8,10 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   if (req.method === "POST") {
+    const requestIp = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown").split(",")[0].trim();
+    if (isRateLimited(`gallery:${requestIp}`, 10, 60000)) {
+      return res.status(429).json({ error: "rate_limited" });
+    }
     const { image, channel_id } = req.body;
 
     if (!image || !channel_id) {
@@ -23,21 +28,7 @@ export default async function handler(req, res) {
     return res.json({ ok: true, id: data.id });
 
   } else if (req.method === "DELETE") {
-    const { id } = req.body;
-
-    if (!id) return res.status(400).json({ error: "missing id" });
-
-    // get image URL to delete from storage
-    const { data } = await supabase.from("gallery").select("image").eq("id", id).single();
-    if (data && data.image) {
-      const path = data.image.split("/media/")[1];
-      if (path) await supabase.storage.from("media").remove([path]);
-    }
-
-    const { error } = await supabase.from("gallery").delete().eq("id", id);
-    if (error) return res.status(500).json({ error: error.message });
-
-    return res.json({ ok: true });
+    return res.status(403).json({ error: "admin API required" });
 
   } else {
     return res.status(405).json({ error: "method not allowed" });
