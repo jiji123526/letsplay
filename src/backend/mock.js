@@ -256,6 +256,60 @@ export function subscribeLiveStatus(chId, cb) {
   emitStatus();
   return () => window.removeEventListener("storage", onStorage);
 }
+
+export function subscribeLivePresence(chId, cb) {
+  const key = `mock_live_presence_${chId || "main"}`;
+  const tabId = crypto.randomUUID();
+  const ttlMs = 10000;
+  let stopped = false;
+
+  const readPresence = () => {
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+    catch { return {}; }
+  };
+  const writePresence = (presence) => {
+    localStorage.setItem(key, JSON.stringify(presence));
+  };
+  const sync = (trackSelf = true) => {
+    if (stopped) return;
+    const now = Date.now();
+    const presence = readPresence();
+    Object.keys(presence).forEach((id) => {
+      if (now - Number(presence[id] || 0) > ttlMs) delete presence[id];
+    });
+    if (trackSelf) presence[tabId] = now;
+    writePresence(presence);
+    cb(Object.keys(presence).length);
+  };
+  const removeSelf = () => {
+    const presence = readPresence();
+    delete presence[tabId];
+    writePresence(presence);
+  };
+  const onStorage = (event) => {
+    if (event.key !== key || stopped) return;
+    const now = Date.now();
+    const presence = readPresence();
+    const count = Object.values(presence)
+      .filter((lastSeen) => now - Number(lastSeen || 0) <= ttlMs)
+      .length;
+    cb(count);
+  };
+  const onPageHide = () => removeSelf();
+
+  window.addEventListener("storage", onStorage);
+  window.addEventListener("pagehide", onPageHide);
+  sync();
+  const timer = window.setInterval(sync, 3000);
+
+  return () => {
+    stopped = true;
+    window.clearInterval(timer);
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("pagehide", onPageHide);
+    removeSelf();
+  };
+}
 const galleryListeners = new Set();
 
 function loadGallery() {

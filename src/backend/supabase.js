@@ -609,3 +609,30 @@ export function subscribeLiveStatus(chId, cb) {
     supabase.removeChannel(channel);
   };
 }
+
+export function subscribeLivePresence(chId, cb) {
+  const tabId = crypto.randomUUID();
+  const channel = supabase.channel(`live-presence-${chId || "main"}`, {
+    config: { presence: { key: tabId } },
+  });
+  let active = true;
+
+  channel
+    .on("presence", { event: "sync" }, () => {
+      if (!active) return;
+      const count = Object.values(channel.presenceState())
+        .reduce((total, entries) => total + entries.length, 0);
+      cb(count);
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED" && active) {
+        await channel.track({ joined_at: new Date().toISOString() });
+      }
+    });
+
+  return () => {
+    active = false;
+    channel.untrack();
+    supabase.removeChannel(channel);
+  };
+}

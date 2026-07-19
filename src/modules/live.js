@@ -3,6 +3,7 @@
    ============================================================ */
 
 let liveUnsub = null;
+let presenceUnsub = null;
 let _ctx = null;
 
 /**
@@ -34,7 +35,18 @@ export function enterLiveMode() {
   });
   document.querySelector(".chat-header").classList.add("live-active");
   showLiveExitBanner();
+  startLivePresence();
   showEmojiBar();
+}
+
+function startLivePresence() {
+  const { urlChannel } = _ctx.getState();
+  const sessionId = localStorage.getItem(`liveSession_${urlChannel}`) || "legacy-active";
+  if (presenceUnsub) presenceUnsub();
+  presenceUnsub = _ctx.subscribeLivePresence(`${urlChannel}-${sessionId}`, (count) => {
+    const counter = document.querySelector(".live-viewer-count");
+    if (counter) counter.textContent = `${count}명 참여 중`;
+  });
 }
 
 export function showLiveExitBanner() {
@@ -46,6 +58,7 @@ export function showLiveExitBanner() {
   bannerEl.innerHTML = `
     <span class="live-banner-dot">●</span>
     <span class="live-banner-text"></span>
+    <span class="live-viewer-count" aria-live="polite">1명 참여 중</span>
     <button class="live-exit-btn">${isAdmin ? "종료" : "나가기"}</button>
   `;
   bannerEl.querySelector(".live-banner-text").textContent = `라이브 채팅 참여중: ${liveTitle}`;
@@ -72,6 +85,7 @@ export function exitLiveMode() {
   _ctx.setState({ inLiveMode: false });
   localStorage.setItem(`inLiveMode_${urlChannel}`, "false");
   if (liveUnsub) { liveUnsub(); liveUnsub = null; }
+  if (presenceUnsub) { presenceUnsub(); presenceUnsub = null; }
   _ctx.setChannel(urlChannel);
   _ctx.initBroadcast();
   _ctx.subscribeCurrentNotice();

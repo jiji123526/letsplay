@@ -2086,6 +2086,17 @@ emoji-picker {
   font-size: var(--bubble-font-size, 13px);
   color: #c62828;
 }
+
+.live-viewer-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c62828;
+  white-space: nowrap;
+}
+[data-theme="dark"] .live-viewer-count {
+  color: #ffb3b3;
+}
 .live-banner-join {
   background: #e74c3c;
   color: #fff;
