@@ -94,7 +94,7 @@ export function showLiveExitBanner() {
     </svg>
     <span class="live-viewer-count" aria-live="polite">0</span>
   `;
-  bannerEl.insertAdjacentElement("afterend", viewerBadge);
+  bannerEl.appendChild(viewerBadge);
 }
 
 export function exitLiveMode() {

@@ -2104,6 +2104,7 @@ emoji-picker {
 
 /* ---------- live exit banner ---------- */
 .live-exit-banner {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2129,20 +2130,22 @@ emoji-picker {
 }
 
 .live-viewer-badge {
-  align-self: flex-start;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 14px;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   gap: .28em;
-  margin: 6px 0 0 14px;
   padding: .28em .58em;
   border-radius: 999px;
   background: rgba(60, 60, 67, .10);
   color: rgba(60, 60, 67, .68);
-  font-size: calc(var(--bubble-font-size, 13px) * .82);
+  font-size: var(--bubble-font-size, 13px);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  flex-shrink: 0;
+  pointer-events: none;
 }
 .live-viewer-icon {
   width: 1.05em;
