@@ -1463,12 +1463,14 @@ function setReply(msg) {
   const preview = msg.text.length > 30 ? msg.text.slice(0, 30) + "…" : msg.text;
   bar.innerHTML = `<svg class="reply-bar-icon" viewBox="0 0 24 24" width="14" height="14"><path d="M9 4l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h14a4 4 0 0 1 4 4v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reply-bar-text">${preview}</span><button class="reply-bar-close">✕</button>`;
   bar.querySelector(".reply-bar-close").addEventListener("click", clearReply);
+  document.documentElement.style.setProperty("--reply-bar-height", `${bar.getBoundingClientRect().height}px`);
   input.focus();
 }
 
 function clearReply() {
   replyingTo = null;
   document.querySelector(".reply-bar")?.remove();
+  document.documentElement.style.setProperty("--reply-bar-height", "0px");
 }
 
 /* check if current user is blocked and disable composer */

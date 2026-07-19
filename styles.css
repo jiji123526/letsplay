@@ -1972,7 +1972,7 @@ emoji-picker {
 /* ---------- scroll to bottom FAB ---------- */
 .scroll-bottom-btn {
   position: fixed;
-  bottom: 70px;
+  bottom: calc(70px + var(--reply-bar-height, 0px));
   right: 16px;
   width: calc(var(--bubble-font-size, 17px) + 19px);
   height: calc(var(--bubble-font-size, 17px) + 19px);
@@ -1988,7 +1988,7 @@ emoji-picker {
   color: var(--meta);
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s, transform .2s;
+  transition: opacity .2s, transform .2s, bottom .2s ease;
 }
 .scroll-bottom-btn.visible {
   opacity: 0.5;
