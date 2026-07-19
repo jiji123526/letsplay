@@ -16,7 +16,7 @@ import { compressImage, getImageDimensions, showFullImage as showFullImageBase }
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
 import { initSearch, configureSearch, restoreSearchHighlights, highlightTextInBubble, closeSearchBar } from "./modules/search.js";
-import { initLiveMode, enterLiveMode, exitLiveMode, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner, spawnEmoji, removeEmojiBar, showEmojiBar, updateEmojiBarPresets } from "./modules/live.js";
+import { initLiveMode, enterLiveMode, exitLiveMode, refreshLivePresence, showLivePopup, showLiveBanner, showLiveExitBanner, showLiveEndedPopup, removeLiveBanner, spawnEmoji, removeEmojiBar, showEmojiBar, updateEmojiBarPresets } from "./modules/live.js";
 import { generateFingerprint } from "./modules/fingerprint.js";
 import { channels } from "../config.js";
 import "emoji-picker-element";
@@ -3070,7 +3070,12 @@ function startChat() {
     localStorage.setItem(`liveActive_${urlChannel}`, active ? "true" : "false");
     if (title) localStorage.setItem(`liveTitle_${urlChannel}`, title);
     const currentSessionId = sessionId || "legacy-active";
+    const previousSessionId = localStorage.getItem(`liveSession_${urlChannel}`) || "legacy-active";
     if (active) localStorage.setItem(`liveSession_${urlChannel}`, currentSessionId);
+
+    if (active && inLiveMode && previousSessionId !== currentSessionId) {
+      refreshLivePresence();
+    }
 
     // The admin who started the live is already in live mode. Other admin
     // devices should receive the same join prompt as ordinary visitors.

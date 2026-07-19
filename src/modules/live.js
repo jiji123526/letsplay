@@ -49,6 +49,11 @@ function startLivePresence() {
   });
 }
 
+export function refreshLivePresence() {
+  if (!_ctx?.getState().inLiveMode) return;
+  startLivePresence();
+}
+
 export function showLiveExitBanner() {
   const { urlChannel, isAdmin, IS_MOCK } = _ctx.getState();
   const liveTitle = localStorage.getItem(`liveTitle_${urlChannel}`) || "라이브";
