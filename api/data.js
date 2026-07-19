@@ -16,6 +16,21 @@ function isAdminRequest(req) {
     && req.headers["x-admin-passcode"] === configured;
 }
 
+function parseLiveStatus(text) {
+  if (!text) return { active: false, title: "", sessionId: "" };
+  try {
+    const value = JSON.parse(text);
+    if (typeof value === "object" && value !== null) {
+      return {
+        active: value.active === true,
+        title: String(value.title || ""),
+        sessionId: String(value.sessionId || ""),
+      };
+    }
+  } catch { /* legacy true/false value */ }
+  return { active: text === "true", title: "", sessionId: "" };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "GET only" });
 
@@ -55,6 +70,16 @@ export default async function handler(req, res) {
       const { data, error } = await query.order("created_at", { ascending: false }).limit(50);
       if (error) throw error;
       return res.json({ items: data || [] });
+    }
+
+    if (resource === "live_status") {
+      const { data, error } = await supabase
+        .from("config")
+        .select("text")
+        .eq("id", `live_${channelId}`)
+        .maybeSingle();
+      if (error) throw error;
+      return res.json({ items: [parseLiveStatus(data?.text)] });
     }
 
     if (resource === "dm") {

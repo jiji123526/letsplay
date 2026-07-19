@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -1078,6 +1078,7 @@ initLiveMode({
   debouncedRender,
   banner,
   adminEndLive,
+  broadcastLiveStatus,
   subscribeLivePresence,
   broadcastEmoji,
   showConfirmDialog,
@@ -2458,6 +2459,7 @@ function showAdminPanel() {
       // end live mode
       showConfirmDialog("라이브 종료", "라이브를 종료하시겠습니까?<br>모든 메시지가 삭제됩니다.", async () => {
         if (!IS_MOCK) await adminEndLive(urlChannel);
+        if (!IS_MOCK) broadcastLiveStatus(urlChannel);
         liveActive = false;
         localStorage.setItem(`liveActive_${urlChannel}`, "false");
         localStorage.removeItem(`liveSeen_${urlChannel}`);
@@ -2475,6 +2477,7 @@ function showAdminPanel() {
         if (!IS_MOCK) {
           const result = await adminStartLive(urlChannel, liveTitle);
           sessionId = result.sessionId;
+          broadcastLiveStatus(urlChannel);
         } else {
           sessionId = crypto.randomUUID();
         }
@@ -3069,9 +3072,9 @@ function startChat() {
     const currentSessionId = sessionId || "legacy-active";
     if (active) localStorage.setItem(`liveSession_${urlChannel}`, currentSessionId);
 
-    // In mock mode admin state is shared through localStorage, so every local
-    // tab looks like an admin. Still show the join prompt in other mock tabs.
-    if (active && (!isAdmin || IS_MOCK) && !inLiveMode) {
+    // The admin who started the live is already in live mode. Other admin
+    // devices should receive the same join prompt as ordinary visitors.
+    if (active && !inLiveMode) {
       if (localStorage.getItem(`liveSeen_${urlChannel}`) === currentSessionId) {
         if (!document.querySelector(".live-popup")) showLiveBanner();
       } else {

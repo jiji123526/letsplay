@@ -257,6 +257,10 @@ export function subscribeLiveStatus(chId, cb) {
   return () => window.removeEventListener("storage", onStorage);
 }
 
+export function broadcastLiveStatus() {
+  // localStorage writes already notify other mock tabs.
+}
+
 export function subscribeLivePresence(chId, cb) {
   const key = `mock_live_presence_${chId || "main"}`;
   const tabId = crypto.randomUUID();

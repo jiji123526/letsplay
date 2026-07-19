@@ -66,6 +66,7 @@ export function showLiveExitBanner() {
     if (isAdmin) {
       _ctx.showConfirmDialog("라이브 종료", "라이브를 종료하시겠습니까?<br>모든 메시지가 삭제됩니다.", async () => {
         if (!IS_MOCK) await _ctx.adminEndLive(urlChannel);
+        if (!IS_MOCK) _ctx.broadcastLiveStatus(urlChannel);
         _ctx.setState({ liveActive: false });
         localStorage.setItem(`liveActive_${urlChannel}`, "false");
         localStorage.removeItem(`liveSeen_${urlChannel}`);

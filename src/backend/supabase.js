@@ -592,22 +592,54 @@ function parseLiveStatus(text) {
   return { active: text === "true", title: "", sessionId: "" };
 }
 
+const liveStatusChannels = new Map();
+
 export function subscribeLiveStatus(chId, cb) {
-  const liveId = `live_${chId || "main"}`;
+  const subscribedChannel = chId || "main";
   let active = true;
+  let fetchPromise = null;
   const fetchStatus = async () => {
-    const { data } = await supabase.from("config").select("text").eq("id", liveId).single();
-    if (active) cb(parseLiveStatus(data?.text));
+    if (!active || fetchPromise) return fetchPromise;
+    fetchPromise = fetch(`/api/data?resource=live_status&channel_id=${encodeURIComponent(subscribedChannel)}`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("live status fetch failed");
+        const data = await response.json();
+        if (active) cb(data.items?.[0] || { active: false, title: "", sessionId: "" });
+      })
+      .catch((error) => console.warn("live status sync failed", error))
+      .finally(() => { fetchPromise = null; });
+    return fetchPromise;
   };
   fetchStatus();
   const channel = supabase
-    .channel(`live-status-${chId || "main"}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "config", filter: `id=eq.${liveId}` }, fetchStatus)
+    .channel(`live-signal-${subscribedChannel}`)
+    .on("broadcast", { event: "status-changed" }, fetchStatus)
     .subscribe();
+  liveStatusChannels.set(subscribedChannel, channel);
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") fetchStatus();
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  const syncTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") fetchStatus();
+  }, 60000);
   return () => {
     active = false;
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    window.clearInterval(syncTimer);
+    if (liveStatusChannels.get(subscribedChannel) === channel) {
+      liveStatusChannels.delete(subscribedChannel);
+    }
     supabase.removeChannel(channel);
   };
+}
+
+export function broadcastLiveStatus(chId) {
+  const channel = liveStatusChannels.get(chId || "main");
+  if (!channel) return;
+  channel.send({ type: "broadcast", event: "status-changed", payload: {} });
 }
 
 export function subscribeLivePresence(chId, cb) {

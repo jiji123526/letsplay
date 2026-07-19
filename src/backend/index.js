@@ -43,6 +43,7 @@ export const setClientFingerprint = impl.setClientFingerprint || (() => {});
 export const getChannelPasscode = impl.getChannelPasscode || (async () => null);
 export const getLiveStatus      = impl.getLiveStatus || (async () => false);
 export const subscribeLiveStatus = impl.subscribeLiveStatus || (() => () => {});
+export const broadcastLiveStatus = impl.broadcastLiveStatus || (() => {});
 export const subscribeLivePresence = impl.subscribeLivePresence || ((_channelId, cb) => { cb(1); return () => {}; });
 export const initBroadcast      = impl.initBroadcast || (() => {});
 export const onEditBroadcast    = impl.onEditBroadcast || (() => () => {});
