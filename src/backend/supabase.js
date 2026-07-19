@@ -88,6 +88,17 @@ export async function initAuth() {
 /* ---- Messages ---- */
 const MESSAGE_PAGE_SIZE = 100;
 let messageCache = [];
+const messageSignalChannels = new Map();
+
+function broadcastMessageChange(targetChannel = channelId) {
+  const channel = messageSignalChannels.get(targetChannel);
+  if (!channel) return;
+  channel.send({
+    type: "broadcast",
+    event: "message-changed",
+    payload: { changed: true },
+  }).catch((error) => console.warn("message change broadcast failed", error));
+}
 
 export function subscribe(cb) {
   const subscribedChannel = channelId;
@@ -173,6 +184,17 @@ export function subscribe(cb) {
       hasConnected = true;
     });
 
+  // Ordinary visitors do not have a Supabase auth token, so RLS may suppress
+  // postgres_changes events. Broadcast carries only an invalidation signal;
+  // message data is still fetched through the protected API above.
+  const signalChannel = publicRealtime
+    .channel(`message-signals-${subscribedChannel}`, { config: { broadcast: { self: true } } })
+    .on("broadcast", { event: "message-changed" }, () => {
+      syncRecentMessages();
+    })
+    .subscribe();
+  messageSignalChannels.set(subscribedChannel, signalChannel);
+
   const handleVisibilityChange = () => {
     if (document.visibilityState === "visible") syncRecentMessages();
   };
@@ -186,6 +208,10 @@ export function subscribe(cb) {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     window.clearInterval(syncTimer);
     supabase.removeChannel(channel);
+    if (messageSignalChannels.get(subscribedChannel) === signalChannel) {
+      messageSignalChannels.delete(subscribedChannel);
+    }
+    publicRealtime.removeChannel(signalChannel);
   };
 }
 
@@ -277,6 +303,7 @@ function formatMessage(row) {
 }
 
 export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
+  const targetChannel = channelId;
   // upload image first if present (direct to storage)
   let imageUrl = null;
   if (image) {
@@ -307,52 +334,63 @@ export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, re
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "send failed");
+  broadcastMessageChange(targetChannel);
 }
 
 export async function removeMessage(id) {
+  const targetChannel = channelId;
   const res = await fetch("/api/messages", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", channel_id: channelId }),
   });
   await requireApiSuccess(res, "message delete failed");
+  broadcastMessageChange(targetChannel);
 }
 
 export async function softDeleteMessage(id) {
+  const targetChannel = channelId;
   const res = await fetch("/api/messages", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", action: "soft-delete" }),
   });
   await requireApiSuccess(res, "message delete failed");
+  broadcastMessageChange(targetChannel);
 }
 
 export async function editMessage(id, newText) {
+  const targetChannel = channelId;
   const res = await fetch("/api/messages", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid: currentUser?.id || "", action: "edit", text: newText }),
   });
   await requireApiSuccess(res, "message edit failed");
+  broadcastMessageChange(targetChannel);
 }
 
 /* ---- Reactions ---- */
 export async function addReaction(id, emoji, uid) {
+  const targetChannel = channelId;
   const res = await fetch("/api/messages", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid, action: "react", emoji }),
   });
   await requireApiSuccess(res, "reaction update failed");
+  broadcastMessageChange(targetChannel);
 }
 
 export async function removeReaction(id, uid) {
+  const targetChannel = channelId;
   const res = await fetch("/api/messages", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, uid, action: "react-clear" }),
   });
   await requireApiSuccess(res, "reaction clear failed");
+  broadcastMessageChange(targetChannel);
 }
 
 /* ---- Blocked users ---- */
