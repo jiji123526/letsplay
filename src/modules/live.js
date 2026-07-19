@@ -92,7 +92,7 @@ export function showLiveExitBanner() {
       <circle cx="12" cy="8" r="3.25"></circle>
       <path d="M5.75 19c.45-4 2.55-6 6.25-6s5.8 2 6.25 6"></path>
     </svg>
-    <span class="live-viewer-count" aria-live="polite">1</span>
+    <span class="live-viewer-count" aria-live="polite">0</span>
   `;
   bannerEl.insertAdjacentElement("afterend", viewerBadge);
 }

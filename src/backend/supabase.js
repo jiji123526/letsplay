@@ -8,6 +8,13 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseConfig } from "../../config.js";
 
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
+const publicRealtime = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
 
 let currentUser = null;
 let channelId = "main"; // default channel
@@ -613,7 +620,7 @@ export function subscribeLiveStatus(chId, cb) {
     return fetchPromise;
   };
   fetchStatus();
-  const channel = supabase
+  const channel = publicRealtime
     .channel(`live-signal-${subscribedChannel}`)
     .on("broadcast", { event: "status-changed" }, fetchStatus)
     .subscribe();
@@ -632,7 +639,7 @@ export function subscribeLiveStatus(chId, cb) {
     if (liveStatusChannels.get(subscribedChannel) === channel) {
       liveStatusChannels.delete(subscribedChannel);
     }
-    supabase.removeChannel(channel);
+    publicRealtime.removeChannel(channel);
   };
 }
 
@@ -644,7 +651,7 @@ export function broadcastLiveStatus(chId) {
 
 export function subscribeLivePresence(chId, cb) {
   const tabId = crypto.randomUUID();
-  const channel = supabase.channel(`live-presence-${chId || "main"}`, {
+  const channel = publicRealtime.channel(`live-presence-${chId || "main"}`, {
     config: { presence: { key: tabId } },
   });
   let active = true;
@@ -665,6 +672,6 @@ export function subscribeLivePresence(chId, cb) {
   return () => {
     active = false;
     channel.untrack();
-    supabase.removeChannel(channel);
+    publicRealtime.removeChannel(channel);
   };
 }
