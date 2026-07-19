@@ -61,6 +61,7 @@ if (isAdmin) {
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
+let dmUnsub = null;
 let galleryItems = [];           // gallery photos
 let galleryUnsub = null;
 let galleryLoaded = false;
@@ -1077,6 +1078,7 @@ initLiveMode({
   initBroadcast,
   subscribeCurrentNotice,
   subscribeCurrentGallery,
+  subscribeCurrentDm,
   render,
   debouncedRender,
   banner,
@@ -1892,6 +1894,22 @@ function subscribeCurrentGallery() {
     } else {
       debouncedRender();
     }
+  });
+}
+
+function subscribeCurrentDm() {
+  if (dmUnsub) {
+    dmUnsub();
+    dmUnsub = null;
+  }
+  dmMessages = [];
+  if (!isAdmin) return;
+  dmUnsub = subscribeDm((list) => {
+    dmMessages = list;
+    const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+    merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    messages = merged;
+    if (!initialLoad) debouncedRender();
   });
 }
 
@@ -3048,15 +3066,7 @@ function startChat() {
     }
   });
   // DMs are moderation data and are fetched only for a verified admin.
-  if (isAdmin) {
-    subscribeDm((list) => {
-      dmMessages = list;
-      const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
-      merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-      messages = merged;
-      if (!initialLoad) debouncedRender();
-    });
-  }
+  subscribeCurrentDm();
   // subscribe to gallery
   subscribeCurrentGallery();
   // subscribe only to the active normal/live channel notice

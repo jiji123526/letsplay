@@ -30,6 +30,32 @@ function recordFailedAttempt(ip) {
   failedAttempts.set(ip, attempts);
 }
 
+function getMediaStoragePath(value) {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const url = new URL(value);
+    const marker = "/storage/v1/object/public/media/";
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex < 0) return null;
+    return decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
+}
+
+async function removeMediaFiles(paths) {
+  const uniquePaths = [...new Set(paths.filter(Boolean))];
+  for (let index = 0; index < uniquePaths.length; index += 100) {
+    const { error } = await supabase.storage.from("media").remove(uniquePaths.slice(index, index + 100));
+    if (error) throw error;
+  }
+}
+
+async function deleteWhere(table, column, value) {
+  const { error } = await supabase.from(table).delete().eq(column, value);
+  if (error) throw error;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "POST only" });
@@ -164,14 +190,42 @@ export default async function handler(req, res) {
       case "endLive": {
         const { channelId } = payload;
         const liveId = `live_${channelId || "main"}`;
-        // set live to false
-        await supabase.from("config").upsert({ id: liveId, text: "false", channel_id: channelId || "main", updated_at: new Date().toISOString() });
-        // delete all live messages
         const liveChannelId = `${channelId || "main"}_live`;
-        await supabase.from("messages").delete().eq("channel_id", liveChannelId);
-        await supabase.from("gallery").delete().eq("channel_id", liveChannelId);
-        await supabase.from("dm").delete().eq("channel_id", liveChannelId);
-        await supabase.from("config").delete().eq("id", `notice_${liveChannelId}`);
+
+        // Stop the live session before cleanup so connected clients leave the
+        // live channel while its temporary data is being removed.
+        const { error: liveStatusError } = await supabase.from("config").upsert({
+          id: liveId,
+          text: "false",
+          channel_id: channelId || "main",
+          updated_at: new Date().toISOString(),
+        });
+        if (liveStatusError) throw liveStatusError;
+
+        // Collect every media URL before deleting its owning database rows.
+        const [messageResult, galleryResult, dmResult] = await Promise.all([
+          supabase.from("messages").select("image").eq("channel_id", liveChannelId).not("image", "is", null),
+          supabase.from("gallery").select("image").eq("channel_id", liveChannelId).not("image", "is", null),
+          supabase.from("dm").select("image").eq("channel_id", liveChannelId).not("image", "is", null),
+        ]);
+        if (messageResult.error) throw messageResult.error;
+        if (galleryResult.error) throw galleryResult.error;
+        if (dmResult.error) throw dmResult.error;
+
+        const mediaPaths = [
+          ...(messageResult.data || []),
+          ...(galleryResult.data || []),
+          ...(dmResult.data || []),
+        ].map((row) => getMediaStoragePath(row.image));
+        await removeMediaFiles(mediaPaths);
+
+        // Replies and reactions live inside message rows, so deleting all live
+        // messages removes those records as well.
+        await deleteWhere("messages", "channel_id", liveChannelId);
+        await deleteWhere("gallery", "channel_id", liveChannelId);
+        await deleteWhere("dm", "channel_id", liveChannelId);
+        await deleteWhere("blocked", "channel_id", liveChannelId);
+        await deleteWhere("config", "channel_id", liveChannelId);
         return res.json({ ok: true });
       }
 

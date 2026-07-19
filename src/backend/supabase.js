@@ -253,6 +253,7 @@ export function subscribe(cb) {
 let broadcastChannel = null;
 let editListeners = new Set();
 let emojiListeners = new Set();
+let dmChangeListeners = new Set();
 
 export function initBroadcast() {
   if (broadcastChannel) supabase.removeChannel(broadcastChannel);
@@ -263,6 +264,9 @@ export function initBroadcast() {
     })
     .on("broadcast", { event: "emoji-fx" }, ({ payload }) => {
       emojiListeners.forEach(cb => cb(payload));
+    })
+    .on("broadcast", { event: "dm-changed" }, () => {
+      dmChangeListeners.forEach(cb => cb());
     })
     .subscribe();
 }
@@ -467,6 +471,7 @@ export async function unblockUser(uid) {
 
 /* ---- DM ---- */
 export async function sendDm({ uid, nick, text, image, imageW, imageH }) {
+  const targetChannel = channelId;
   let imageUrl = null;
   if (image) {
     imageUrl = await uploadImage(image);
@@ -474,9 +479,16 @@ export async function sendDm({ uid, nick, text, image, imageW, imageH }) {
   const res = await fetch("/api/dm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid, nick, text, image: imageUrl, channel_id: channelId }),
+    body: JSON.stringify({ uid, nick, text, image: imageUrl, channel_id: targetChannel }),
   });
   if (!res.ok) throw new Error("DM send failed");
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "dm-changed",
+      payload: { changed: true },
+    }).catch((error) => console.warn("DM change broadcast failed", error));
+  }
 }
 
 export async function removeDm(id) {
@@ -486,15 +498,36 @@ export async function removeDm(id) {
 export function subscribeDm(cb) {
   const subscribedChannel = channelId;
   let dmCache = [];
-  const initialFetch = fetchDm().then((list) => {
-    dmCache = list;
-    cb([...dmCache]);
-  });
+  let stopped = false;
+  let fetchPromise = null;
+  let syncQueued = false;
+  const syncDm = () => {
+    if (stopped) return Promise.resolve();
+    if (fetchPromise) {
+      syncQueued = true;
+      return fetchPromise;
+    }
+    fetchPromise = fetchDm(subscribedChannel).then((list) => {
+      if (stopped) return;
+      dmCache = list;
+      cb([...dmCache]);
+    }).catch((error) => console.warn("DM sync failed", error))
+      .finally(() => {
+        fetchPromise = null;
+        if (syncQueued && !stopped) {
+          syncQueued = false;
+          window.setTimeout(syncDm, 0);
+        }
+      });
+    return fetchPromise;
+  };
+  const initialFetch = syncDm();
 
   const channel = supabase
     .channel(`dm-${subscribedChannel}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "dm", filter: `channel_id=eq.${subscribedChannel}` }, async (payload) => {
       await initialFetch.catch(() => {});
+      if (stopped) return;
       const row = payload.new;
       const id = row?.id || payload.old?.id;
       if (!id) return;
@@ -511,11 +544,17 @@ export function subscribeDm(cb) {
     })
     .subscribe();
 
-  return () => { supabase.removeChannel(channel); };
+  dmChangeListeners.add(syncDm);
+
+  return () => {
+    stopped = true;
+    dmChangeListeners.delete(syncDm);
+    supabase.removeChannel(channel);
+  };
 }
 
-async function fetchDm() {
-  const data = await fetchPrivateData("dm");
+async function fetchDm(targetChannel = channelId) {
+  const data = await fetchPrivateData("dm", { channel_id: targetChannel });
   return data.map(formatDm);
 }
 

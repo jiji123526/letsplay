@@ -8,7 +8,7 @@ let _ctx = null;
 
 /**
  * Initialize live mode with app context.
- * @param {object} ctx - { getState, setState, subscribe, setChannel, initBroadcast, subscribeCurrentNotice, subscribeCurrentGallery, render, debouncedRender, banner, adminEndLive, IS_MOCK }
+ * @param {object} ctx - { getState, setState, subscribe, setChannel, initBroadcast, subscribeCurrentNotice, subscribeCurrentGallery, subscribeCurrentDm, render, debouncedRender, banner, adminEndLive, IS_MOCK }
  *   getState() returns { urlChannel, isAdmin, liveActive, inLiveMode, allMessages, messages, dmMessages, hasScrolledInitial }
  *   setState(updates) merges into app state
  */
@@ -24,6 +24,7 @@ export function enterLiveMode() {
   _ctx.initBroadcast();
   _ctx.subscribeCurrentNotice();
   _ctx.subscribeCurrentGallery();
+  _ctx.subscribeCurrentDm();
   _ctx.render();
   // subscribe to live channel messages
   liveUnsub = _ctx.subscribe((list) => {
