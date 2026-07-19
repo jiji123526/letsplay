@@ -105,6 +105,9 @@ export function subscribe(cb) {
   let stopped = false;
   let hasConnected = false;
   let recentSyncPromise = null;
+  let syncQueued = false;
+  let syncDebounceTimer = null;
+  let syncMaxWaitTimer = null;
   messageCache = [];
 
   const publish = () => {
@@ -113,7 +116,10 @@ export function subscribe(cb) {
 
   const syncRecentMessages = () => {
     if (stopped) return Promise.resolve();
-    if (recentSyncPromise) return recentSyncPromise;
+    if (recentSyncPromise) {
+      syncQueued = true;
+      return recentSyncPromise;
+    }
     recentSyncPromise = fetchPrivateData("messages", { limit: String(MESSAGE_PAGE_SIZE) })
       .then((rows) => {
         if (stopped) return;
@@ -133,8 +139,31 @@ export function subscribe(cb) {
         publish();
       })
       .catch((error) => console.warn("recent message sync failed", error))
-      .finally(() => { recentSyncPromise = null; });
+      .finally(() => {
+        recentSyncPromise = null;
+        if (syncQueued && !stopped) {
+          syncQueued = false;
+          window.setTimeout(syncRecentMessages, 0);
+        }
+      });
     return recentSyncPromise;
+  };
+
+  const flushScheduledSync = () => {
+    if (syncDebounceTimer !== null) window.clearTimeout(syncDebounceTimer);
+    if (syncMaxWaitTimer !== null) window.clearTimeout(syncMaxWaitTimer);
+    syncDebounceTimer = null;
+    syncMaxWaitTimer = null;
+    syncRecentMessages();
+  };
+
+  const scheduleRecentSync = () => {
+    if (stopped) return;
+    if (syncDebounceTimer !== null) window.clearTimeout(syncDebounceTimer);
+    syncDebounceTimer = window.setTimeout(flushScheduledSync, 150);
+    if (syncMaxWaitTimer === null) {
+      syncMaxWaitTimer = window.setTimeout(flushScheduledSync, 500);
+    }
   };
 
   const initialFetch = fetchMessages().then((list) => {
@@ -190,7 +219,7 @@ export function subscribe(cb) {
   const signalChannel = publicRealtime
     .channel(`message-signals-${subscribedChannel}`, { config: { broadcast: { self: true } } })
     .on("broadcast", { event: "message-changed" }, () => {
-      syncRecentMessages();
+      scheduleRecentSync();
     })
     .subscribe();
   messageSignalChannels.set(subscribedChannel, signalChannel);
@@ -199,14 +228,19 @@ export function subscribe(cb) {
     if (document.visibilityState === "visible") syncRecentMessages();
   };
   document.addEventListener("visibilitychange", handleVisibilityChange);
+  const syncIntervalMs = subscribedChannel.endsWith("_live")
+    ? 45_000 + Math.floor(Math.random() * 15_001)
+    : 5 * 60 * 1000;
   const syncTimer = window.setInterval(() => {
     if (document.visibilityState === "visible") syncRecentMessages();
-  }, 5 * 60 * 1000);
+  }, syncIntervalMs);
 
   return () => {
     stopped = true;
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     window.clearInterval(syncTimer);
+    if (syncDebounceTimer !== null) window.clearTimeout(syncDebounceTimer);
+    if (syncMaxWaitTimer !== null) window.clearTimeout(syncMaxWaitTimer);
     supabase.removeChannel(channel);
     if (messageSignalChannels.get(subscribedChannel) === signalChannel) {
       messageSignalChannels.delete(subscribedChannel);
