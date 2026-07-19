@@ -62,6 +62,8 @@ let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
 let galleryItems = [];           // gallery photos
+let galleryUnsub = null;
+let galleryLoaded = false;
 let initialLoad = true;          // force scroll to bottom for first 3 seconds
 let hasScrolledInitial = false;
 let userInteracted = false;
@@ -1074,6 +1076,7 @@ initLiveMode({
   setChannel,
   initBroadcast,
   subscribeCurrentNotice,
+  subscribeCurrentGallery,
   render,
   debouncedRender,
   banner,
@@ -1675,8 +1678,9 @@ async function send() {
       // send text message (with first photo attached if any)
       if (photos.length > 0) {
         const first = photos[0];
-        const galleryId = await saveToGallery(first.blob);
-        msgData.galleryId = galleryId;
+        const savedGallery = await saveToGallery(first.blob);
+        msgData.galleryId = savedGallery.id;
+        msgData.storedImage = savedGallery.image;
         msgData.imageW = first.dimensions?.width;
         msgData.imageH = first.dimensions?.height;
       }
@@ -1685,8 +1689,8 @@ async function send() {
       // send remaining photos as separate messages
       for (let i = 1; i < photos.length; i++) {
         const p = photos[i];
-        const galleryId = await saveToGallery(p.blob);
-        await sendMessage({ uid: sendUid, nick, text: "", is_admin: isAdmin, adminPasscode: isAdmin ? getAdminPasscode() : null, galleryId, imageW: p.dimensions?.width, imageH: p.dimensions?.height });
+        const savedGallery = await saveToGallery(p.blob);
+        await sendMessage({ uid: sendUid, nick, text: "", is_admin: isAdmin, adminPasscode: isAdmin ? getAdminPasscode() : null, galleryId: savedGallery.id, storedImage: savedGallery.image, imageW: p.dimensions?.width, imageH: p.dimensions?.height });
       }
     }
     sendTimestamps.push(Date.now());
@@ -1873,6 +1877,21 @@ function subscribeCurrentNotice() {
     initialized = true;
     currentNotice = text;
     renderNoticeBanner();
+  });
+}
+
+function subscribeCurrentGallery() {
+  if (galleryUnsub) galleryUnsub();
+  galleryItems = [];
+  galleryLoaded = false;
+  galleryUnsub = subscribeGallery((list) => {
+    galleryItems = list;
+    if (!galleryLoaded) {
+      galleryLoaded = true;
+      render();
+    } else {
+      debouncedRender();
+    }
   });
 }
 
@@ -3005,7 +3024,6 @@ function startChat() {
     }
   });
   imgObserver.observe(messagesEl, { childList: true, subtree: true });
-  let galleryLoaded = false;
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); blockedFingerprints = new Set(list.filter(b => b.fingerprint).map(b => b.fingerprint)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   subscribe((list) => {
     const previousMessages = messages;
@@ -3040,7 +3058,7 @@ function startChat() {
     });
   }
   // subscribe to gallery
-  subscribeGallery((list) => { galleryItems = list; if (!galleryLoaded) { galleryLoaded = true; render(); } else { debouncedRender(); } });
+  subscribeCurrentGallery();
   // subscribe only to the active normal/live channel notice
   subscribeCurrentNotice();
   toggleSend();

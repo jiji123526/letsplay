@@ -63,11 +63,12 @@ export function subscribe(cb) {
   return () => listeners.delete(cb);
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH }) {
+export async function sendMessage({ uid, nick, text, is_admin, replyTo, report, reportedMsgId, image, storedImage, dm, galleryId, imageW, imageH }) {
   const list = load();
   const msg = { id: id(), uid, nick, text, is_admin: !!is_admin, replyTo: replyTo || null, createdAt: new Date() };
   if (report) { msg.report = true; msg.reportedMsgId = reportedMsgId || null; }
   if (image) { msg.image = image instanceof Blob ? URL.createObjectURL(image) : image; }
+  else if (storedImage) { msg.image = storedImage; }
   if (imageW) { msg.imageW = imageW; }
   if (imageH) { msg.imageH = imageH; }
   if (dm) { msg.dm = true; }
@@ -344,7 +345,7 @@ export async function saveToGallery(image) {
   memoryGallery = list;
   saveGalleryList(list);
   galleryListeners.forEach((cb) => cb(list));
-  return newId;
+  return { id: newId, image: imageUrl };
 }
 
 export function subscribeGallery(cb) {

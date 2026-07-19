@@ -82,6 +82,17 @@ export default async function handler(req, res) {
       return res.json({ items: [parseLiveStatus(data?.text)] });
     }
 
+    if (resource === "gallery") {
+      const { data, error } = await supabase
+        .from("gallery")
+        .select("id,image,channel_id,created_at")
+        .eq("channel_id", channelId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return res.json({ items: data || [] });
+    }
+
     if (resource === "dm") {
       if (!admin) return res.status(403).json({ error: "admin required" });
       const { data, error } = await supabase

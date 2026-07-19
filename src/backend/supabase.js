@@ -336,7 +336,7 @@ function formatMessage(row) {
   };
 }
 
-export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, replyTo, report, reportedMsgId, image, dm, galleryId, imageW, imageH, fingerprint }) {
+export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, replyTo, report, reportedMsgId, image, storedImage, dm, galleryId, imageW, imageH, fingerprint }) {
   const targetChannel = channelId;
   // upload image first if present (direct to storage)
   let imageUrl = null;
@@ -352,7 +352,7 @@ export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, re
       uid,
       nick,
       text: text || "",
-      image: imageUrl || null,
+      image: imageUrl || storedImage || null,
       is_admin: !!is_admin,
       admin_passcode: is_admin ? adminPasscode || null : null,
       channel_id: channelId,
@@ -532,6 +532,18 @@ function formatDm(row) {
 
 /* ---- Gallery (uses Supabase Storage for files) ---- */
 
+const gallerySignalChannels = new Map();
+
+function broadcastGalleryChange(targetChannel = channelId) {
+  const channel = gallerySignalChannels.get(targetChannel);
+  if (!channel) return;
+  channel.send({
+    type: "broadcast",
+    event: "gallery-changed",
+    payload: { changed: true },
+  }).catch((error) => console.warn("gallery change broadcast failed", error));
+}
+
 async function uploadImage(blob) {
   const ext = blob.type === "image/gif" ? "gif" : "jpg";
   const fileName = `${channelId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
@@ -548,29 +560,52 @@ async function uploadImage(blob) {
 }
 
 export async function saveToGallery(imageBlob) {
+  const targetChannel = channelId;
   const imageUrl = await uploadImage(imageBlob);
   const res = await fetch("/api/gallery", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid: currentUser?.id || "", image: imageUrl, channel_id: channelId }),
+    body: JSON.stringify({ uid: currentUser?.id || "", image: imageUrl, channel_id: targetChannel }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "gallery save failed");
-  return data.id;
+  broadcastGalleryChange(targetChannel);
+  return { id: data.id, image: imageUrl };
 }
 
 export function subscribeGallery(cb) {
   const subscribedChannel = channelId;
   let galleryCache = [];
-  const initialFetch = fetchGallery().then((list) => {
-    galleryCache = list;
-    cb([...galleryCache]);
-  });
+  let stopped = false;
+  let fetchPromise = null;
+  let syncQueued = false;
+  const syncGallery = () => {
+    if (stopped) return Promise.resolve();
+    if (fetchPromise) {
+      syncQueued = true;
+      return fetchPromise;
+    }
+    fetchPromise = fetchGallery(subscribedChannel).then((list) => {
+      if (stopped) return;
+      galleryCache = list;
+      cb([...galleryCache]);
+    }).catch((error) => console.warn("gallery sync failed", error))
+      .finally(() => {
+        fetchPromise = null;
+        if (syncQueued && !stopped) {
+          syncQueued = false;
+          window.setTimeout(syncGallery, 0);
+        }
+      });
+    return fetchPromise;
+  };
+  const initialFetch = syncGallery();
 
   const channel = supabase
     .channel(`gallery-${subscribedChannel}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "gallery", filter: `channel_id=eq.${subscribedChannel}` }, async (payload) => {
       await initialFetch.catch(() => {});
+      if (stopped) return;
       const row = payload.new;
       const id = row?.id || payload.old?.id;
       if (!id) return;
@@ -588,12 +623,25 @@ export function subscribeGallery(cb) {
     })
     .subscribe();
 
-  return () => { supabase.removeChannel(channel); };
+  const signalChannel = publicRealtime
+    .channel(`gallery-signals-${subscribedChannel}`, { config: { broadcast: { self: true } } })
+    .on("broadcast", { event: "gallery-changed" }, syncGallery)
+    .subscribe();
+  gallerySignalChannels.set(subscribedChannel, signalChannel);
+
+  return () => {
+    stopped = true;
+    supabase.removeChannel(channel);
+    if (gallerySignalChannels.get(subscribedChannel) === signalChannel) {
+      gallerySignalChannels.delete(subscribedChannel);
+    }
+    publicRealtime.removeChannel(signalChannel);
+  };
 }
 
-async function fetchGallery() {
-  const { data } = await supabase.from("gallery").select("*").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(100);
-  return (data || []).map(formatGalleryItem);
+async function fetchGallery(targetChannel = channelId) {
+  const data = await fetchPrivateData("gallery", { channel_id: targetChannel });
+  return data.map(formatGalleryItem);
 }
 
 function formatGalleryItem(row) {
