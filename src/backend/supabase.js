@@ -10,6 +10,7 @@ import { supabaseConfig } from "../../config.js";
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey);
 const publicRealtime = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
   auth: {
+    storageKey: "letsplay-public-realtime",
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,
@@ -550,7 +551,7 @@ export function subscribeNotice(cb) {
   const noticeId = `notice_${channelId}`;
   let active = true;
   const fetchSubscribedNotice = async () => {
-    const { data } = await supabase.from("config").select("text").eq("id", noticeId).single();
+    const { data } = await supabase.from("config").select("text").eq("id", noticeId).maybeSingle();
     if (active) cb(data?.text || "");
   };
   fetchSubscribedNotice();

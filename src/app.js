@@ -2973,6 +2973,7 @@ function startChat() {
     setChannel(`${urlChannel}_live`);
     document.querySelector(".chat-header").classList.add("live-active");
     showLiveExitBanner();
+    refreshLivePresence();
     showEmojiBar();
   }
   // messages container starts hidden via CSS; revealed after first scroll-to-bottom
