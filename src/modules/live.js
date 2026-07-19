@@ -45,7 +45,7 @@ function startLivePresence() {
   if (presenceUnsub) presenceUnsub();
   presenceUnsub = _ctx.subscribeLivePresence(`${urlChannel}-${sessionId}`, (count) => {
     const counter = document.querySelector(".live-viewer-count");
-    if (counter) counter.textContent = `${count}명 참여 중`;
+    if (counter) counter.textContent = String(count);
   });
 }
 
@@ -53,12 +53,12 @@ export function showLiveExitBanner() {
   const { urlChannel, isAdmin, IS_MOCK } = _ctx.getState();
   const liveTitle = localStorage.getItem(`liveTitle_${urlChannel}`) || "라이브";
   document.querySelector(".live-exit-banner")?.remove();
+  document.querySelector(".live-viewer-badge")?.remove();
   const bannerEl = document.createElement("div");
   bannerEl.className = "live-exit-banner";
   bannerEl.innerHTML = `
     <span class="live-banner-dot">●</span>
     <span class="live-banner-text"></span>
-    <span class="live-viewer-count" aria-live="polite">1명 참여 중</span>
     <button class="live-exit-btn">${isAdmin ? "종료" : "나가기"}</button>
   `;
   bannerEl.querySelector(".live-banner-text").textContent = `라이브 채팅 참여중: ${liveTitle}`;
@@ -79,6 +79,17 @@ export function showLiveExitBanner() {
     }
   });
   document.querySelector(".chat-header").insertAdjacentElement("afterend", bannerEl);
+  const viewerBadge = document.createElement("div");
+  viewerBadge.className = "live-viewer-badge";
+  viewerBadge.setAttribute("aria-label", "라이브 참여 인원");
+  viewerBadge.innerHTML = `
+    <svg class="live-viewer-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.25"></circle>
+      <path d="M5.75 19c.45-4 2.55-6 6.25-6s5.8 2 6.25 6"></path>
+    </svg>
+    <span class="live-viewer-count" aria-live="polite">1</span>
+  `;
+  bannerEl.insertAdjacentElement("afterend", viewerBadge);
 }
 
 export function exitLiveMode() {
@@ -87,6 +98,7 @@ export function exitLiveMode() {
   localStorage.setItem(`inLiveMode_${urlChannel}`, "false");
   if (liveUnsub) { liveUnsub(); liveUnsub = null; }
   if (presenceUnsub) { presenceUnsub(); presenceUnsub = null; }
+  document.querySelector(".live-viewer-badge")?.remove();
   _ctx.setChannel(urlChannel);
   _ctx.initBroadcast();
   _ctx.subscribeCurrentNotice();

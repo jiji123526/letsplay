@@ -2087,16 +2087,6 @@ emoji-picker {
   color: #c62828;
 }
 
-.live-viewer-count {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 600;
-  color: #c62828;
-  white-space: nowrap;
-}
-[data-theme="dark"] .live-viewer-count {
-  color: #ffb3b3;
-}
 .live-banner-join {
   background: #e74c3c;
   color: #fff;
@@ -2136,6 +2126,36 @@ emoji-picker {
 [data-theme="dark"] .live-exit-banner {
   background: #2d1515;
   border-bottom-color: #4a1c1c;
+}
+
+.live-viewer-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: .28em;
+  margin: 6px 0 0 14px;
+  padding: .28em .58em;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, .10);
+  color: rgba(60, 60, 67, .68);
+  font-size: calc(var(--bubble-font-size, 13px) * .82);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.live-viewer-icon {
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[data-theme="dark"] .live-viewer-badge {
+  background: rgba(235, 235, 245, .12);
+  color: rgba(235, 235, 245, .66);
 }
 
 /* ---------- edit dialog ---------- */
