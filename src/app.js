@@ -76,7 +76,6 @@ let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") |
 let renderTimer = null;
 let skipNextScroll = false;
 let prevMessageIds = [];
-const embedCache = new Map(); // msgId → embed DOM element
 
 function debouncedRender() {
   if (renderTimer) cancelAnimationFrame(renderTimer);
@@ -244,15 +243,20 @@ function render() {
   const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
   skipNextScroll = false;
 
-  // save embed elements before clearing DOM
-  messagesEl.querySelectorAll(".embed-twitter, .embed-instagram").forEach((el) => {
-    const row = el.closest(".row[id]");
-    if (row) {
+  // Identify rows with embeds that haven't changed — we'll preserve them in-place
+  const preservedRows = new Map(); // msgId → DOM row
+  messagesEl.querySelectorAll(".row[id]").forEach((row) => {
+    if (row.querySelector(".embed-twitter, .embed-instagram")) {
       const msgId = row.id.replace("msg-", "");
-      embedCache.set(msgId, el);
-      el.remove(); // detach but keep in cache
+      const msg = messages.find((m) => m.id === msgId);
+      if (msg && !msg.deleted && !msg.edited) {
+        preservedRows.set(msgId, row);
+      }
     }
   });
+
+  // Detach preserved rows before clearing (keeps their iframe state alive)
+  preservedRows.forEach((row) => row.remove());
 
   messagesEl.innerHTML = "";
 
@@ -283,7 +287,12 @@ function render() {
     const prev = topLevel[i - 1];
     const next = topLevel[i + 1];
 
-    renderMessage(m, prev, next, false, null);
+    if (preservedRows.has(m.id)) {
+      // Re-insert the preserved row (iframe stays alive, no re-init)
+      messagesEl.appendChild(preservedRows.get(m.id));
+    } else {
+      renderMessage(m, prev, next, false, null);
+    }
 
     // render replies stacked below by time
     const replies = repliesMap[m.id];
@@ -291,7 +300,11 @@ function render() {
       replies.forEach((r, ri) => {
         const rPrev = ri === 0 ? m : replies[ri - 1];
         const rNext = replies[ri + 1] || null;
-        renderMessage(r, rPrev, rNext, true, m);
+        if (preservedRows.has(r.id)) {
+          messagesEl.appendChild(preservedRows.get(r.id));
+        } else {
+          renderMessage(r, rPrev, rNext, true, m);
+        }
       });
     }
   });
@@ -481,17 +494,9 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         urls.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
           if (twitterRegex.test(fullUrl)) {
-            if (embedCache.has(m.id)) {
-              const link = bubble.querySelector(".bubble-link"); if (link) link.style.display = "none";
-              bubble.appendChild(embedCache.get(m.id));
-              embedCache.delete(m.id);
-            } else { embedTwitter(fullUrl, bubble); }
+            embedTwitter(fullUrl, bubble);
           } else if (instagramRegex.test(fullUrl)) {
-            if (embedCache.has(m.id)) {
-              const link = bubble.querySelector(".bubble-link"); if (link) link.style.display = "none";
-              bubble.appendChild(embedCache.get(m.id));
-              embedCache.delete(m.id);
-            } else { embedInstagram(fullUrl, bubble); }
+            embedInstagram(fullUrl, bubble);
           } else {
             fetchLinkPreview(fullUrl, bubble);
           }
