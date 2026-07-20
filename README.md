@@ -1,4 +1,4 @@
-# 찍이네 (letsplay)
+# letsplay
 
 A real-time anonymous chat application with multi-channel support, built with vanilla JavaScript and Supabase.
 
