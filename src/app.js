@@ -1411,7 +1411,34 @@ sendBtn.addEventListener("touchend", (e) => { e.preventDefault(); send(); });
    ============================================================ */
 
 function showFullImage(src, meta) {
-  showFullImageBase(src, meta, scrollToMessageSilent);
+  showFullImageBase(src, meta, (id, isGalleryId) => {
+    if (isGalleryId) {
+      // Find the message by galleryId, or load it
+      const msg = allMessages.find((m) => m.galleryId === id);
+      if (msg) {
+        scrollToMessageSilent(msg.id);
+      } else {
+        // Need to find the message ID for this gallery item
+        findMessageByGalleryId(id).then((msgId) => {
+          if (msgId) scrollToMessageSilent(msgId);
+          else banner("해당 채팅을 찾을 수 없습니다");
+        });
+      }
+    } else {
+      scrollToMessageSilent(id);
+    }
+  });
+}
+
+async function findMessageByGalleryId(galleryId) {
+  // fetch the message that references this gallery item
+  try {
+    const res = await fetch(`/api/data?resource=messages&channel_id=${urlChannel}&gallery_id=${galleryId}&limit=1`);
+    const data = await res.json();
+    const msg = (data.items || [])[0];
+    if (msg) return msg.id;
+  } catch {}
+  return null;
 }
 
 /* ============================================================
@@ -1436,8 +1463,69 @@ function scrollToMessageSilent(msgId) {
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   } else {
-    banner("해당 채팅을 찾을 수 없습니다");
+    // message not loaded yet — load history until it appears
+    ensureMessageLoadedById(msgId).then((found) => {
+      if (found) {
+        const target = document.getElementById(`msg-${msgId}`);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        banner("해당 채팅을 찾을 수 없습니다");
+      }
+    });
   }
+}
+
+async function ensureMessageLoadedById(msgId) {
+  if (allMessages.some((m) => m.id === msgId)) return true;
+  // find the target message's timestamp by looking in gallery items or fetching it
+  const galleryItem = galleryItems.find((g) => g.id === msgId);
+  let targetTime = galleryItem?.createdAt?.getTime();
+
+  // if we don't have a timestamp, fetch the message directly
+  if (!targetTime) {
+    try {
+      const res = await fetch(`/api/data?resource=messages&id=${msgId}&channel_id=${urlChannel}`);
+      const data = await res.json();
+      const msg = data.items?.[0];
+      if (!msg) return false;
+      targetTime = new Date(msg.created_at).getTime();
+    } catch { return false; }
+  }
+
+  // load older messages in a loop until we find it
+  let attempts = 0;
+  while (attempts < 100) {
+    if (allMessages.some((m) => m.id === msgId)) break;
+    const oldest = allMessages.find((m) => m.createdAt);
+    if (!oldest?.createdAt || oldest.createdAt.getTime() <= targetTime) break;
+    const older = await loadMoreMessages(oldest.createdAt.toISOString());
+    if (older.length === 0) break;
+    const byId = new Map(allMessages.map((m) => [m.id, m]));
+    older.forEach((m) => byId.set(m.id, m));
+    allMessages = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    attempts += 1;
+  }
+
+  // check if found after loading
+  if (!allMessages.some((m) => m.id === msgId)) {
+    // try fetching the specific message and injecting it
+    try {
+      const res = await fetch(`/api/data?resource=messages&id=${msgId}&channel_id=${urlChannel}`);
+      const data = await res.json();
+      const msg = data.items?.[0];
+      if (msg) {
+        const formatted = { ...msg, createdAt: msg.created_at ? new Date(msg.created_at) : null };
+        allMessages.push(formatted);
+        allMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      } else {
+        return false;
+      }
+    } catch { return false; }
+  }
+
+  refilterMessages();
+  render();
+  return true;
 }
 
 const photoBtn = $("#photoBtn");

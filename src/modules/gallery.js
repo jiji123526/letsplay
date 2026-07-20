@@ -55,7 +55,12 @@ export function showGallery(galleryItems, allMessages, onViewImage) {
     img.addEventListener("click", () => {
       const galleryId = img.dataset.id;
       const msg = allMessages.find((m) => m.galleryId === galleryId);
-      const meta = msg ? { caption: msg.text || "", date: msg.createdAt, msgId: msg.id } : null;
+      const galleryItem = galleryItems.find((g) => g.id === galleryId);
+      const meta = msg
+        ? { caption: msg.text || "", date: msg.createdAt, msgId: msg.id }
+        : galleryItem
+          ? { caption: "", date: galleryItem.createdAt, galleryId: galleryId }
+          : null;
       onViewImage(img.src, meta);
     });
   });

@@ -73,12 +73,12 @@ export function showFullImage(src, meta, onNavigate) {
     overlay.appendChild(info);
 
     const dateBtn = info.querySelector(".img-overlay-date");
-    if (dateBtn && meta.msgId && onNavigate) {
+    if (dateBtn && (meta.msgId || meta.galleryId) && onNavigate) {
       dateBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         overlay.remove();
         document.querySelector(".gallery-panel")?.remove();
-        onNavigate(meta.msgId);
+        onNavigate(meta.msgId || meta.galleryId, !!meta.galleryId);
       });
     }
   }

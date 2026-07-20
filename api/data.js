@@ -52,6 +52,7 @@ export default async function handler(req, res) {
         .eq("channel_id", channelId);
       if (!admin) query = query.eq("report", false);
       if (req.query.id) query = query.eq("id", String(req.query.id));
+      if (req.query.gallery_id) query = query.eq("gallery_id", String(req.query.gallery_id));
       if (req.query.before) query = query.lt("created_at", String(req.query.before));
       const { data, error } = await query.order("created_at", { ascending: false }).limit(limit);
       if (error) throw error;
