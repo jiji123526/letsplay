@@ -939,6 +939,11 @@ let blockedList = getBlockedUsers();
 
 /* Admin-aware action wrappers */
 async function doDeleteMessage(id) {
+  // optimistic: remove from local state immediately
+  allMessages = allMessages.filter(m => m.id !== id);
+  refilterMessages();
+  debouncedRender();
+  // sync to server
   if (isAdmin && !IS_MOCK) await adminDeleteMessage(id);
   else await removeMessage(id);
 }
@@ -974,6 +979,11 @@ async function doEditMessage(id, newText) {
 }
 
 async function doDeleteDm(id) {
+  // optimistic: remove from local state immediately
+  dmMessages = dmMessages.filter(m => m.id !== id);
+  refilterMessages();
+  debouncedRender();
+  // sync to server
   if (isAdmin && !IS_MOCK) await adminDeleteDm(id);
   else await removeDm(id);
 }
@@ -996,6 +1006,12 @@ async function deleteMessageWithReplies(msgId) {
       idsToDelete.push(m.id);
     }
   });
+  // optimistic: remove from local state immediately
+  const idSet = new Set(idsToDelete);
+  allMessages = allMessages.filter(m => !idSet.has(m.id));
+  refilterMessages();
+  debouncedRender();
+  // sync to server
   if (isAdmin && !IS_MOCK) {
     await adminDeleteMessages(idsToDelete);
   } else {
