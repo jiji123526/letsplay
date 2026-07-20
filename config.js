@@ -4,10 +4,10 @@
 
 // ---- BACKEND SELECTION ----
 // "supabase" | "mock"
-export const BACKEND = "mock";
+export const BACKEND = "supabase";
 
 // ---- LOCAL DEV MODE ----
-export const USE_MOCK = true;
+export const USE_MOCK = false;
 
 // ---- Supabase Config ----
 export const supabaseConfig = {
