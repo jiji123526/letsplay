@@ -49,5 +49,7 @@ export const initBroadcast      = impl.initBroadcast || (() => {});
 export const onEditBroadcast    = impl.onEditBroadcast || (() => () => {});
 export const onEmojiBroadcast   = impl.onEmojiBroadcast || (() => () => {});
 export const broadcastEdit      = impl.broadcastEdit || (() => {});
+export const broadcastDelete    = impl.broadcastDelete || (() => {});
+export const onDeleteBroadcast  = impl.onDeleteBroadcast || (() => () => {});
 export const broadcastEmoji     = impl.broadcastEmoji || (() => {});
 export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

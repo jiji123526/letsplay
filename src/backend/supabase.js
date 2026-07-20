@@ -252,6 +252,7 @@ export function subscribe(cb) {
 /* ---- Broadcast channel for instant updates ---- */
 let broadcastChannel = null;
 let editListeners = new Set();
+let deleteListeners = new Set();
 let emojiListeners = new Set();
 let dmChangeListeners = new Set();
 
@@ -261,6 +262,9 @@ export function initBroadcast() {
     .channel(`broadcast-${channelId}`, { config: { broadcast: { self: false } } })
     .on("broadcast", { event: "msg-edit" }, ({ payload }) => {
       editListeners.forEach(cb => cb(payload));
+    })
+    .on("broadcast", { event: "msg-delete" }, ({ payload }) => {
+      deleteListeners.forEach(cb => cb(payload));
     })
     .on("broadcast", { event: "emoji-fx" }, ({ payload }) => {
       emojiListeners.forEach(cb => cb(payload));
@@ -287,6 +291,21 @@ export function broadcastEdit(id, text) {
       type: "broadcast",
       event: "msg-edit",
       payload: { id, text, edited: true },
+    });
+  }
+}
+
+export function onDeleteBroadcast(cb) {
+  deleteListeners.add(cb);
+  return () => deleteListeners.delete(cb);
+}
+
+export function broadcastDelete(ids) {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "msg-delete",
+      payload: { ids },
     });
   }
 }

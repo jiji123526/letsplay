@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -943,6 +943,8 @@ async function doDeleteMessage(id) {
   allMessages = allMessages.filter(m => m.id !== id);
   refilterMessages();
   debouncedRender();
+  // broadcast to other clients instantly
+  broadcastDelete([id]);
   // sync to server
   if (isAdmin && !IS_MOCK) await adminDeleteMessage(id);
   else await removeMessage(id);
@@ -1011,6 +1013,8 @@ async function deleteMessageWithReplies(msgId) {
   allMessages = allMessages.filter(m => !idSet.has(m.id));
   refilterMessages();
   debouncedRender();
+  // broadcast to other clients instantly
+  broadcastDelete(idsToDelete);
   // sync to server
   if (isAdmin && !IS_MOCK) {
     await adminDeleteMessages(idsToDelete);
@@ -1830,6 +1834,15 @@ function startChat() {
       const msg = allMessages.find(m => m.id === id);
       if (msg) { msg.text = text; msg.edited = edited; }
       debouncedRender();
+    });
+    onDeleteBroadcast(({ ids }) => {
+      const idSet = new Set(ids);
+      const before = allMessages.length;
+      allMessages = allMessages.filter(m => !idSet.has(m.id));
+      if (allMessages.length !== before) {
+        refilterMessages();
+        debouncedRender();
+      }
     });
     onEmojiBroadcast(({ emoji, x, h }) => {
       spawnEmoji(emoji, x, h);
