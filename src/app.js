@@ -56,6 +56,20 @@ if (isAdmin) {
     const passcode = atob(storedPass);
     setAdminPasscode(passcode);
     setAdminCredential(passcode);
+    // verify stored passcode is still valid
+    verifyAdmin(passcode).then((valid) => {
+      if (valid !== true) {
+        isAdmin = false;
+        localStorage.setItem("isAdmin", "false");
+        localStorage.removeItem("ap");
+        setAdminPasscode(null);
+        setAdminCredential(null);
+      }
+    }).catch(() => {});
+  } else {
+    // no stored passcode — revoke admin
+    isAdmin = false;
+    localStorage.setItem("isAdmin", "false");
   }
 }
 let messages = [];               // filtered list for rendering
