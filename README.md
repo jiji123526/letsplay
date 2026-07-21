@@ -12,11 +12,13 @@ A real-time anonymous chat application with multi-channel support, built with va
 - Multi-photo select (each photo sent as a separate message)
 - GIF support (no compression, preserves animation)
 - Link previews with OG meta scraping
-- Native Twitter/X and Instagram embeds (preserved across re-renders)
+- Native Twitter/X, Instagram, and YouTube embeds (preserved across re-renders)
 - Full-text search with keyboard dismiss detection
 - Dark/light theme (follows system preference)
 - Customizable bubble color (7 presets + custom picker)
-- Adjustable font size
+- Adjustable font size (scales bubbles, gaps, and UI elements)
+- Typing indicator (bouncing dots) for incoming image messages
+- Skeleton loading screen on initial page load
 
 ### Multi-Channel
 - Multiple channels via URL (`/ch/channel-id`)
@@ -24,6 +26,7 @@ A real-time anonymous chat application with multi-channel support, built with va
 - Per-channel bubble color defaults
 - Per-channel notice banners (title + optional expandable body)
 - Per-channel blocked users
+- Per-channel profile (name + image, admin-configurable)
 - Channel picker with profile images
 
 ### Live Mode
@@ -35,12 +38,16 @@ A real-time anonymous chat application with multi-channel support, built with va
 - Emoji bar with customizable presets during live session
 
 ### Admin
-- Admin panel: notice, bubble color, passcode, banned words, blocked users, live mode
-- All admin actions go through Vercel serverless functions (service role key)
-- `is_admin` flag re-verified server-side on every message — cannot be faked by clients
+- Categorized admin panel (채널 / 관리)
+- Channel settings: profile (with square crop), color, passcode, notice
+- Management: banned words, blocked users, force refresh, chat freeze
+- Chat freeze: disables public messaging, users can still send DMs
+- Force refresh: broadcast reload to all connected clients
+- `is_admin` flag re-verified server-side on every message and on page load
 - Cross-device admin color sync via Supabase
 - Report system with click-to-navigate to reported messages
 - Instant message deletion broadcast to all connected clients
+- Optimistic UI: admin deletions appear instant without waiting for DB
 
 ## Tech Stack
 
@@ -56,7 +63,7 @@ A real-time anonymous chat application with multi-channel support, built with va
 
 ```
 letsplay/
-├── index.html              — Main HTML
+├── index.html              — Main HTML (includes skeleton loader)
 ├── styles.css              — All styles
 ├── config.js               — Supabase config, channel definitions
 ├── schema.sql              — Database schema
@@ -64,21 +71,22 @@ letsplay/
 ├── vite.config.js
 ├── vercel.json             — Vercel build config + URL rewrites
 ├── src/
-│   ├── app.js              — Orchestrator: state, subscriptions, message rendering
+│   ├── app.js              — Orchestrator: state, subscriptions, rendering
 │   ├── utils.js            — Shared utilities (hashString)
 │   ├── admin/
 │   │   └── api.js          — Admin API client (calls /api/admin)
 │   ├── backend/
 │   │   ├── index.js        — Backend abstraction layer
-│   │   ├── supabase.js     — Supabase implementation
+│   │   ├── supabase.js     — Supabase implementation + broadcast
 │   │   └── mock.js         — localStorage mock for local dev
 │   └── modules/
 │       ├── dialogs.js      — Confirm, prompt, edit, passcode dialogs
 │       ├── context-menu.js — Long-press context menu + reactions
-│       ├── admin-panels.js — Admin settings panels
+│       ├── admin-panels.js — Admin settings panels (categorized)
 │       ├── notice.js       — Notice banner, input, panel
 │       ├── settings.js     — Header menu + settings panel
-│       ├── embeds.js       — Twitter/Instagram/link previews
+│       ├── embeds.js       — Twitter/Instagram/YouTube/link previews
+│       ├── crop.js         — Square image crop tool
 │       ├── photo.js        — Image compression + lightbox
 │       ├── gallery.js      — Gallery panel
 │       ├── links-panel.js  — Shared links panel
@@ -86,12 +94,13 @@ letsplay/
 │       ├── live.js         — Live mode
 │       └── fingerprint.js  — Browser fingerprint for ban enforcement
 ├── api/                    — Vercel serverless functions
+│   ├── init.js             — Consolidated initial data (single request)
 │   ├── messages.js         — Send, delete, edit, react (validates ownership)
 │   ├── admin.js            — Admin actions (passcode-gated, service role)
 │   ├── gallery.js          — Gallery uploads
 │   ├── preview.js          — OG meta link preview scraper
 │   ├── dm.js               — Direct messages to admin
-│   ├── data.js             — Message reads + search
+│   ├── data.js             — Message reads + search + live status
 │   └── version.js          — App version endpoint
 ├── server/
 │   ├── auth.js             — Admin passcode verification
@@ -185,21 +194,55 @@ console.log(Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,
 | `messages` | Chat messages — text, reactions, replies, images, reports |
 | `blocked` | Blocked users per channel (uid + fingerprint) |
 | `dm` | Direct messages to admin |
-| `gallery` | Image gallery entries |
-| `config` | Key-value store for notices, passcodes, live status, admin colors, banned words |
+| `gallery` | Image gallery entries (with auth_uid for ownership) |
+| `config` | Key-value store for notices, passcodes, live status, colors, freeze, profile, banned words |
+
+## Performance
+
+### Consolidated Initial Load
+All initial data is fetched in a single `/api/init` request:
+- Messages (100 most recent)
+- Gallery items
+- Blocked list (admin only)
+- Config: freeze state, channel name, profile image, notice, live status
+
+Subscriptions use preloaded data and skip redundant fetches. Falls back to individual requests with a 4-second timeout if init fails.
+
+### Rendering Optimizations
+- Embed preservation: Twitter/Instagram/YouTube iframes kept alive during re-renders
+- O(1) reply parent lookup via Set (not O(n) find)
+- Reaction-only DOM patching without full re-render
+- Fast append path for new messages (skips full rebuild)
+- Visibility sync throttled to max once per 5 seconds
+
+## Broadcasting
+
+Real-time events broadcast instantly to all connected clients via Supabase channels:
+
+| Event | Trigger | Effect |
+|---|---|---|
+| `msg-edit` | Admin/user edits a message | All clients update text instantly |
+| `msg-delete` | Admin deletes a message | All clients remove message instantly |
+| `freeze-change` | Admin freezes/unfreezes | All clients toggle input state + banner |
+| `profile-change` | Admin updates channel name/image | All clients update header |
+| `force-refresh` | Admin triggers refresh | All clients reload the page |
+| `emoji-fx` | User sends emoji reaction | Flying emoji animation on all screens |
 
 ## Security Model
 
-All writes go through Vercel serverless functions using the service role key — the Supabase client in the browser is used for reads and Realtime subscriptions only.
+All writes go through Vercel serverless functions using the service role key. The Supabase client in the browser is used for reads and Realtime subscriptions only.
 
 | Concern | How it's handled |
 |---|---|
 | Fake admin messages | `is_admin` re-verified server-side against `ADMIN_PASSCODE` env var |
-| Admin panel access | Every admin API call requires `ADMIN_PASSCODE` — IP rate-limited on failures |
+| Fake admin panel access | Admin passcode verified on page load; revoked if invalid |
+| Admin API access | Every call requires `ADMIN_PASSCODE` — IP rate-limited on failures (10/hour) |
 | Ban enforcement | UID and browser fingerprint checked on every message send |
 | Rate limiting | 5 messages per 10 seconds per UID, server-side |
 | Banned words | Checked server-side on every message insert |
+| Chat freeze | Server rejects non-admin messages when frozen |
 | Own-message enforcement | Delete/edit verify `msg.uid === uid` server-side |
+| Blocked data privacy | Non-admin users only see their own ban status (no full blocked list) |
 | Passcode storage | SHA-256 hashed, stored in DB — fallback to `config.js` |
 
 ## License
