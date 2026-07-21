@@ -446,6 +446,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         img.className = "bubble-img";
         img.src = imageSrc;
         img.alt = "photo";
+        img.loading = "lazy";
         // reserve space using stored dimensions to prevent layout shift
         if (m.imageW && m.imageH) {
           img.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
@@ -1287,16 +1288,46 @@ const input   = $("#msgInput");
 const sendBtn = $("#sendBtn");
 const scrollBottomBtn = $("#scrollBottomBtn");
 let replyingTo = null; // { id, text } of message being replied to
+let unreadCount = 0; // new messages while scrolled up
 
 /* ---- Scroll-to-bottom FAB ---- */
 messagesEl.addEventListener("scroll", () => {
   const distFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
-  scrollBottomBtn.classList.toggle("visible", distFromBottom >= 120);
+  const isAtBottom = distFromBottom < 120;
+  scrollBottomBtn.classList.toggle("visible", !isAtBottom);
+  if (isAtBottom) {
+    unreadCount = 0;
+    updateUnreadBadge();
+  }
 });
 scrollBottomBtn.addEventListener("click", () => {
   messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
   scrollBottomBtn.classList.remove("visible");
+  unreadCount = 0;
+  updateUnreadBadge();
 });
+
+function updateUnreadBadge() {
+  let badge = scrollBottomBtn.querySelector(".unread-badge");
+  if (unreadCount > 0) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "unread-badge";
+      scrollBottomBtn.appendChild(badge);
+    }
+    badge.textContent = unreadCount > 99 ? "99+" : unreadCount;
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+function incrementUnread() {
+  const distFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+  if (distFromBottom >= 120) {
+    unreadCount++;
+    updateUnreadBadge();
+  }
+}
 
 function toggleSend() {
   const has = input.value.trim().length > 0 || pendingPhotos.length > 0;
@@ -1471,6 +1502,11 @@ async function send() {
     input.value = savedText;
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 80) + "px";
+    // restore photos on failure (recreate preview URLs from blobs)
+    if (photos.length > 0) {
+      pendingPhotos = photos.map(p => ({ ...p, previewUrl: URL.createObjectURL(p.blob) }));
+      showMultiPhotoPreview();
+    }
     toggleSend();
     if (e.message === "banned") banner("차단되어 전송할 수 없습니다");
     else if (e.message === "rate_limited") banner("너무 빠르게 보내고 있습니다");
@@ -2013,6 +2049,11 @@ function startChat() {
   subscribeBlocked((list) => { blockedList = list; blockedUids = new Set(list.map(b => b.uid)); blockedFingerprints = new Set(list.filter(b => b.fingerprint).map(b => b.fingerprint)); checkIfBlocked(); refilterMessages(); if (galleryLoaded) render(); });
   subscribe((list) => {
     const previousMessages = messages;
+    // count new messages for unread badge
+    if (!initialLoad && list.length > allMessages.length) {
+      const newCount = list.length - allMessages.length;
+      for (let i = 0; i < newCount; i++) incrementUnread();
+    }
     allMessages = list;
     // filter out report messages for display
     if (!isAdmin) {
