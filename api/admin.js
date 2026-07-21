@@ -157,6 +157,13 @@ export default async function handler(req, res) {
         return res.json({ ok: true, color: data?.text || null });
       }
 
+      case "getConfig": {
+        const { key } = payload;
+        if (!key) return res.status(400).json({ error: "missing key" });
+        const { data } = await supabase.from("config").select("text").eq("id", key).single();
+        return res.json({ ok: true, value: data?.text || null });
+      }
+
       case "setPasscode": {
         const { channelId, hashedPasscode } = payload;
         const passcodeId = `passcode_${channelId || "main"}`;
