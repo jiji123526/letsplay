@@ -90,6 +90,25 @@ const MESSAGE_PAGE_SIZE = 100;
 let messageCache = [];
 const messageSignalChannels = new Map();
 
+// Pre-loaded initial data from /api/init (set by initFromServer)
+let preloadedData = null;
+
+/**
+ * Fetch all initial data in one request and cache it.
+ * Subscriptions will use this instead of making separate fetches.
+ */
+export async function initFromServer() {
+  const headers = adminCredential ? await authenticatedHeaders() : {};
+  if (adminCredential) headers["X-Admin-Passcode"] = adminCredential;
+  try {
+    const res = await fetch(`/api/init?channel_id=${encodeURIComponent(channelId)}&limit=${MESSAGE_PAGE_SIZE}`, { headers, cache: "no-store" });
+    if (res.ok) {
+      preloadedData = await res.json();
+    }
+  } catch {}
+  return preloadedData;
+}
+
 function broadcastMessageChange(targetChannel = channelId) {
   const channel = messageSignalChannels.get(targetChannel);
   if (!channel) return;
@@ -120,7 +139,10 @@ export function subscribe(cb) {
       syncQueued = true;
       return recentSyncPromise;
     }
-    recentSyncPromise = fetchPrivateData("messages", { limit: String(MESSAGE_PAGE_SIZE) })
+    recentSyncPromise = (preloadedData?.messages
+      ? Promise.resolve(preloadedData.messages).then(rows => { preloadedData.messages = null; return rows; })
+      : fetchPrivateData("messages", { limit: String(MESSAGE_PAGE_SIZE) })
+    )
       .then((rows) => {
         if (stopped) return;
         const recent = rows.map(formatMessage);
@@ -518,7 +540,10 @@ export function getBlockedUsers() {
 export function subscribeBlocked(cb) {
   const subscribedChannel = channelId;
   _blockedListeners.add(cb);
-  fetchBlocked().then((list) => { _blockedList = list; cb(list); });
+  const blockedPromise = preloadedData?.blocked
+    ? Promise.resolve(preloadedData.blocked.map(b => ({ uid: b.uid, fingerprint: b.fingerprint || "", reason: b.reason || "" }))).then(d => { preloadedData.blocked = null; return d; })
+    : fetchBlocked();
+  blockedPromise.then((list) => { _blockedList = list; cb(list); });
 
   const channel = supabase
     .channel(`blocked-${subscribedChannel}`)
@@ -583,7 +608,10 @@ export function subscribeDm(cb) {
       syncQueued = true;
       return fetchPromise;
     }
-    fetchPromise = fetchDm(subscribedChannel).then((list) => {
+    fetchPromise = (preloadedData?.dm
+      ? Promise.resolve(preloadedData.dm.map(formatDm)).then(d => { preloadedData.dm = null; return d; })
+      : fetchDm(subscribedChannel)
+    ).then((list) => {
       if (stopped) return;
       dmCache = list;
       cb([...dmCache]);
@@ -700,7 +728,10 @@ export function subscribeGallery(cb) {
       syncQueued = true;
       return fetchPromise;
     }
-    fetchPromise = fetchGallery(subscribedChannel).then((list) => {
+    fetchPromise = (preloadedData?.gallery
+      ? Promise.resolve(preloadedData.gallery.map(formatGalleryItem)).then(d => { preloadedData.gallery = null; return d; })
+      : fetchGallery(subscribedChannel)
+    ).then((list) => {
       if (stopped) return;
       galleryCache = list;
       cb([...galleryCache]);
@@ -789,7 +820,13 @@ export function subscribeNotice(cb) {
     const { data } = await supabase.from("config").select("text").eq("id", noticeId).maybeSingle();
     if (active) cb(data?.text || "");
   };
-  fetchSubscribedNotice();
+  // use preloaded notice if available
+  if (preloadedData?.config?.notice !== undefined) {
+    cb(preloadedData.config.notice || "");
+    preloadedData.config.notice = undefined;
+  } else {
+    fetchSubscribedNotice();
+  }
 
   const channel = supabase
     .channel(`config-${channelId}`)
@@ -855,7 +892,13 @@ export function subscribeLiveStatus(chId, cb) {
       .finally(() => { fetchPromise = null; });
     return fetchPromise;
   };
-  fetchStatus();
+  // use preloaded live status if available
+  if (preloadedData?.config?.liveStatus) {
+    cb(preloadedData.config.liveStatus);
+    preloadedData.config.liveStatus = undefined;
+  } else {
+    fetchStatus();
+  }
   const channel = publicRealtime
     .channel(`live-signal-${subscribedChannel}`)
     .on("broadcast", { event: "status-changed" }, fetchStatus)

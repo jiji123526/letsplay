@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastProfile, onProfileBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, initFromServer, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastProfile, onProfileBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, embedYouTube, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -797,15 +797,8 @@ document.querySelector(".chat-header").addEventListener("click", (e) => {
 });
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
 
-// load saved channel name and profile from config
-if (!IS_MOCK) {
-  fetch(`/api/data?resource=channel_profile&channel_id=${urlChannel}`)
-    .then(r => r.json()).then(d => {
-      const profile = d.items?.[0];
-      if (profile?.name) document.querySelector(".hdr-name").textContent = profile.name;
-      if (profile?.image) document.querySelector(".hdr-avatar-img").src = profile.image;
-    }).catch(() => {});
-} else {
+// load saved channel profile and freeze state — handled by initFromServer in initAuth chain
+if (IS_MOCK) {
   const mockName = localStorage.getItem(`mock_channelName_${urlChannel}`);
   if (mockName) document.querySelector(".hdr-name").textContent = mockName;
   const mockImg = localStorage.getItem(`mock_profile_${urlChannel}`);
@@ -998,11 +991,20 @@ initSettings({
   showAdminPanel,
 });
 
-initAuth().then((uid) => {
+initAuth().then(async (uid) => {
   myUid = uid;
   myNick = anonNameFor(uid);
   if (isAdmin) syncAdminColor();
-  showEntryGate();          // pick a role (anon by default), then enter
+  // pre-load all initial data in one request before starting subscriptions
+  if (!IS_MOCK) {
+    const initPromise = initFromServer();
+    const timeoutPromise = new Promise(r => setTimeout(() => r(null), 4000));
+    const d = await Promise.race([initPromise, timeoutPromise]);
+    if (d?.config?.channelName) document.querySelector(".hdr-name").textContent = d.config.channelName;
+    if (d?.config?.profileImage) document.querySelector(".hdr-avatar-img").src = d.config.profileImage;
+    if (d?.config?.frozen) { isFrozen = true; checkIfBlocked(); }
+  }
+  showEntryGate();          // always starts, even if init timed out
 }).catch((e) => {
   console.error("auth failed", e);
   banner("초기화 실패");
@@ -2038,13 +2040,8 @@ function startChat() {
   if (IS_MOCK) {
     isFrozen = localStorage.getItem(`mock_frozen_${urlChannel}`) === "true";
     checkIfBlocked();
-  } else {
-    // fetch freeze state from config on load (public, no admin auth needed)
-    fetch(`/api/data?resource=freeze_status&channel_id=${urlChannel}`)
-      .then(r => r.json()).then(d => {
-        if (d.items?.[0]?.frozen) { isFrozen = true; checkIfBlocked(); }
-      }).catch(() => {});
   }
+  // freeze state for non-mock loaded via /api/init on page load
 
   // init broadcast channel for instant edits + emoji effects
   if (!IS_MOCK) {
