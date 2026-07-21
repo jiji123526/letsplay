@@ -243,12 +243,12 @@ export function showEmojiPresetPanel() {
         <h3>이모지 프리셋</h3>
         <button class="emoji-preset-close">✕</button>
       </div>
-      <div class="admin-panel-body" style="padding:20px 18px;">
+      <div class="admin-panel-body admin-body-padded">
         <div class="emoji-preset-list" id="emojiPresetList"></div>
         <div class="banned-words-add">
           <button class="emoji-preset-add-btn">+ 추가</button>
         </div>
-        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+        <div class="admin-passcode-result admin-result"></div>
       </div>
     </div>
   `;
@@ -368,7 +368,7 @@ export function showAdminColorPanel() {
         <h3>채널 기본 색상</h3>
         <button class="admin-color-close">✕</button>
       </div>
-      <div class="admin-panel-body" style="padding:20px 18px;">
+      <div class="admin-panel-body admin-body-padded">
         <div class="admin-color-info">이 채널의 기본 말풍선 색상을 설정합니다</div>
         <div class="settings-color-grid" style="width:100%;max-width:200px;margin:16px auto;">
           ${bubbleColors.map(c => `<button class="settings-color-btn ${c === currentColor ? "active" : ""}" data-color="${c}" style="background:${c};${c === currentColor ? `outline-color:${darkenColor(c, 50)}` : ""}"></button>`).join("")}
@@ -427,12 +427,12 @@ export function showAdminPasscodePanel() {
         <h3>채널 비밀번호</h3>
         <button class="admin-passcode-close">✕</button>
       </div>
-      <div class="admin-panel-body" style="padding:20px 18px;">
-        <div class="admin-color-info" style="margin-bottom:16px;">현재 채널: ${currentChannelConfig.name}</div>
-        <input class="passcode-dialog-input" type="text" placeholder="새 비밀번호 입력" autocomplete="off" style="margin-bottom:8px;" />
-        <div class="admin-color-info" style="margin-bottom:16px;font-size:11px;">비우면 비밀번호 해제</div>
-        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
-        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:500;"></div>
+      <div class="admin-panel-body admin-body-padded">
+        <div class="admin-sublabel">현재 채널: ${currentChannelConfig.name}</div>
+        <input class="admin-input" type="text" placeholder="새 비밀번호 입력" autocomplete="off" style="margin-bottom:8px;" />
+        <div class="admin-sublabel" style="font-size:11px;">비우면 비밀번호 해제</div>
+        <button class="admin-passcode-save admin-save-btn">저장</button>
+        <div class="admin-passcode-result admin-result"></div>
       </div>
     </div>
   `;
@@ -440,7 +440,7 @@ export function showAdminPasscodePanel() {
   panel.querySelector(".admin-passcode-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
   panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
 
-  const input = panel.querySelector(".passcode-dialog-input");
+  const input = panel.querySelector(".admin-input");
   const resultEl = panel.querySelector(".admin-passcode-result");
 
   panel.querySelector(".admin-passcode-save").addEventListener("click", async () => {
@@ -491,7 +491,7 @@ export function showBannedWordsPanel() {
         <h3>금지어</h3>
         <button class="banned-words-close">✕</button>
       </div>
-      <div class="admin-panel-body" style="padding:20px 18px;">
+      <div class="admin-panel-body admin-body-padded">
         <div class="banned-words-list" id="bannedWordsList"></div>
         <div class="banned-words-add">
           <input class="banned-words-input" type="text" placeholder="금지어 추가..." />
@@ -503,7 +503,7 @@ export function showBannedWordsPanel() {
           </select>
           <button class="banned-words-add-btn">+</button>
         </div>
-        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+        <div class="admin-passcode-result admin-result"></div>
       </div>
     </div>
   `;
@@ -523,7 +523,7 @@ export function showBannedWordsPanel() {
 
   function renderWords() {
     listEl.innerHTML = words.length === 0
-      ? '<div style="color:var(--meta);font-size:var(--bubble-font-size, 13px);text-align:center;padding:12px 0;">등록된 금지어가 없습니다</div>'
+      ? '<div class="admin-empty">등록된 금지어가 없습니다</div>'
       : words.map((w, i) => `
         <div class="banned-word-item">
           <span class="banned-word-text"></span>
@@ -671,20 +671,20 @@ export function showProfilePanel() {
         <h3>채널 프로필</h3>
         <button class="profile-panel-close">✕</button>
       </div>
-      <div class="admin-panel-body" style="padding:20px 18px;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:24px;">
-          <div class="profile-img-preview" style="width:80px;height:80px;border-radius:20px;overflow:hidden;border:2px dashed #ddd;cursor:pointer;display:flex;align-items:center;justify-content:center;background:#f8f8f8;">
-            <img src="${currentImg}" style="width:100%;height:100%;object-fit:cover;" />
+      <div class="admin-panel-body admin-body-padded">
+        <div class="profile-upload-wrap">
+          <div class="profile-img-preview">
+            <img src="${currentImg}" />
           </div>
-          <button class="profile-img-btn" style="background:#f4f4f4;border:1px solid #e0e0e0;border-radius:10px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit;color:#555;">사진 변경</button>
+          <button class="profile-img-btn">사진 변경</button>
           <input type="file" class="profile-img-input" accept="image/*" style="display:none;" />
         </div>
         <div style="margin-bottom:16px;">
-          <div style="font-size:12px;color:#aaa;font-weight:700;margin-bottom:8px;">채널 이름</div>
-          <input class="profile-name-input" type="text" value="${currentName}" maxlength="20" style="width:100%;background:#f8f8f8;border:1.5px solid #e0e0e0;border-radius:12px;padding:11px 14px;font-size:14px;color:#333;font-family:inherit;box-sizing:border-box;outline:none;" />
+          <div class="admin-label">채널 이름</div>
+          <input class="profile-name-input admin-input" type="text" value="${currentName}" maxlength="20" />
         </div>
-        <button class="profile-save-btn" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
-        <div class="profile-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+        <button class="profile-save-btn admin-save-btn">저장</button>
+        <div class="profile-result admin-result"></div>
       </div>
     </div>
   `;
@@ -769,9 +769,6 @@ export function showProfilePanel() {
     resultEl.style.display = "block";
     setTimeout(() => { resultEl.style.display = "none"; }, 2000);
   });
-
-  nameInput.addEventListener("focus", (e) => e.target.style.borderColor = "#3b8df0");
-  nameInput.addEventListener("blur", (e) => e.target.style.borderColor = "#e0e0e0");
 
   document.body.appendChild(panel);
   nameInput.focus();
