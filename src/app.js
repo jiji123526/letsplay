@@ -2098,7 +2098,18 @@ function startChat() {
       const newCount = list.length - allMessages.length;
       for (let i = 0; i < newCount; i++) incrementUnread();
     }
-    allMessages = list;
+    // merge with older messages (loaded via scroll-up) instead of replacing
+    const byId = new Map(allMessages.map(m => [m.id, m]));
+    list.forEach(m => byId.set(m.id, m));
+    // remove messages that were deleted (in subscription range but not in new list)
+    const newIds = new Set(list.map(m => m.id));
+    const oldest = list[0]?.createdAt;
+    if (oldest) {
+      for (const [id, m] of byId) {
+        if (m.createdAt >= oldest && !newIds.has(id)) byId.delete(id);
+      }
+    }
+    allMessages = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     // filter out report messages for display
     if (!isAdmin) {
       messages = list.filter((m) => !m.report);
