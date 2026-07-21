@@ -1683,10 +1683,12 @@ function subscribeCurrentDm() {
   if (!isAdmin) return;
   dmUnsub = subscribeDm((list) => {
     dmMessages = list;
-    const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
-    merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    messages = merged;
-    if (!initialLoad) debouncedRender();
+    if (!initialLoad) {
+      const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+      merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      messages = merged;
+      debouncedRender();
+    }
   });
 }
 
