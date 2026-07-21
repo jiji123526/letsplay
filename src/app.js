@@ -2028,9 +2028,8 @@ function startChat() {
       debouncedRender();
     }
   });
-  // DMs are moderation data and are fetched only for a verified admin.
+  // DMs must load before gallery (gallery triggers first render)
   subscribeCurrentDm();
-  // subscribe to gallery
   subscribeCurrentGallery();
   // subscribe only to the active normal/live channel notice
   subscribeCurrentNotice();
