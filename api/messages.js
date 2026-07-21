@@ -48,6 +48,15 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "banned" });
     }
 
+    // freeze check: non-admin can't send when frozen
+    if (!verifiedAdmin) {
+      const frozenId = `notice_frozen_${channel_id}`;
+      const { data: frozenData } = await supabase.from("config").select("text").eq("id", frozenId).single();
+      if (frozenData && frozenData.text === "true") {
+        return res.status(403).json({ error: "frozen" });
+      }
+    }
+
     // rate limit
     if (!verifiedAdmin && isRateLimited(uid)) {
       return res.status(429).json({ error: "rate_limited" });

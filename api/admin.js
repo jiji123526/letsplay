@@ -244,6 +244,33 @@ export default async function handler(req, res) {
         return res.json({ ok: true, words: data?.text || "" });
       }
 
+      case "uploadProfile": {
+        const { channelId, imageBase64 } = payload;
+        if (!imageBase64) return res.json({ ok: true, url: null });
+        // decode base64 to buffer
+        const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        const fileName = `profiles/profile_${channelId}_${Date.now()}.jpg`;
+        const { error: uploadError } = await supabase.storage.from("media").upload(fileName, buffer, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from("media").getPublicUrl(fileName);
+        // save URL to config
+        const profileId = `profile_img_${channelId}`;
+        await supabase.from("config").upsert({ id: profileId, text: urlData.publicUrl, channel_id: channelId, updated_at: new Date().toISOString() });
+        return res.json({ ok: true, url: urlData.publicUrl });
+      }
+
+      case "setChannelName": {
+        const { channelId, name } = payload;
+        const nameId = `channelName_${channelId}`;
+        const { error } = await supabase.from("config").upsert({ id: nameId, text: name || "", channel_id: channelId, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return res.json({ ok: true });
+      }
+
       default:
         return res.status(400).json({ error: "Unknown action" });
     }

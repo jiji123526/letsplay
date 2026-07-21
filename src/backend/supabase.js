@@ -253,6 +253,8 @@ export function subscribe(cb) {
 let broadcastChannel = null;
 let editListeners = new Set();
 let deleteListeners = new Set();
+let refreshListeners = new Set();
+let freezeListeners = new Set();
 let emojiListeners = new Set();
 let dmChangeListeners = new Set();
 
@@ -265,6 +267,12 @@ export function initBroadcast() {
     })
     .on("broadcast", { event: "msg-delete" }, ({ payload }) => {
       deleteListeners.forEach(cb => cb(payload));
+    })
+    .on("broadcast", { event: "force-refresh" }, () => {
+      refreshListeners.forEach(cb => cb());
+    })
+    .on("broadcast", { event: "freeze-change" }, ({ payload }) => {
+      freezeListeners.forEach(cb => cb(payload));
     })
     .on("broadcast", { event: "emoji-fx" }, ({ payload }) => {
       emojiListeners.forEach(cb => cb(payload));
@@ -306,6 +314,36 @@ export function broadcastDelete(ids) {
       type: "broadcast",
       event: "msg-delete",
       payload: { ids },
+    });
+  }
+}
+
+export function onRefreshBroadcast(cb) {
+  refreshListeners.add(cb);
+  return () => refreshListeners.delete(cb);
+}
+
+export function broadcastRefresh() {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "force-refresh",
+      payload: {},
+    });
+  }
+}
+
+export function onFreezeBroadcast(cb) {
+  freezeListeners.add(cb);
+  return () => freezeListeners.delete(cb);
+}
+
+export function broadcastFreeze(frozen) {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "freeze-change",
+      payload: { frozen },
     });
   }
 }

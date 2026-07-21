@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -57,15 +57,17 @@ if (isAdmin) {
     setAdminPasscode(passcode);
     setAdminCredential(passcode);
     // verify stored passcode is still valid
-    verifyAdmin(passcode).then((valid) => {
-      if (valid !== true) {
-        isAdmin = false;
-        localStorage.setItem("isAdmin", "false");
-        localStorage.removeItem("ap");
-        setAdminPasscode(null);
-        setAdminCredential(null);
-      }
-    }).catch(() => {});
+    if (!IS_MOCK) {
+      verifyAdmin(passcode).then((valid) => {
+        if (valid !== true) {
+          isAdmin = false;
+          localStorage.setItem("isAdmin", "false");
+          localStorage.removeItem("ap");
+          setAdminPasscode(null);
+          setAdminCredential(null);
+        }
+      }).catch(() => {});
+    }
   } else {
     // no stored passcode — revoke admin
     isAdmin = false;
@@ -84,6 +86,7 @@ let hasScrolledInitial = false;
 let userInteracted = false;
 let liveActive = localStorage.getItem(`liveActive_${new URLSearchParams(window.location.search).get("ch") || window.location.pathname.match(/^\/ch\/([^/]+)/)?.[1] || "main"}`) === "true";
 let inLiveMode = localStorage.getItem(`inLiveMode_${new URLSearchParams(window.location.search).get("ch") || window.location.pathname.match(/^\/ch\/([^/]+)/)?.[1] || "main"}`) === "true";
+let isFrozen = false;
 let reportedMsgIds = new Set(JSON.parse(localStorage.getItem("reportedMsgIds") || "[]"));
 
 /* debounced render — batches rapid updates (reactions, etc.) into one render */
@@ -790,6 +793,19 @@ document.querySelector(".chat-header").addEventListener("click", (e) => {
   messagesEl.scrollTo({ top: 0, behavior: "smooth" });
 });
 document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
+
+// load saved channel name and profile from config
+if (!IS_MOCK) {
+  fetch(`/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "", action: "getColor", payload: { channelId: `channelName_${urlChannel}` } }) })
+    .then(r => r.json()).then(d => { if (d.color) document.querySelector(".hdr-name").textContent = d.color; }).catch(() => {});
+  fetch(`/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "", action: "getColor", payload: { channelId: `profile_img_${urlChannel}` } }) })
+    .then(r => r.json()).then(d => { if (d.color) document.querySelector(".hdr-avatar-img").src = d.color; }).catch(() => {});
+} else {
+  const mockName = localStorage.getItem(`mock_channelName_${urlChannel}`);
+  if (mockName) document.querySelector(".hdr-name").textContent = mockName;
+  const mockImg = localStorage.getItem(`mock_profile_${urlChannel}`);
+  if (mockImg) document.querySelector(".hdr-avatar-img").src = mockImg;
+}
 const savedBubbleColor = localStorage.getItem(`bubbleColor_${urlChannel}`);
 if (savedBubbleColor) {
   document.documentElement.style.setProperty("--bubble-sent", savedBubbleColor);
@@ -934,7 +950,7 @@ initAdminPanels({
   urlChannel,
   currentChannelConfig,
   IS_MOCK,
-  getState: () => ({ liveActive, inLiveMode }),
+  getState: () => ({ liveActive, inLiveMode, isFrozen }),
   setState: (updates) => {
     if ("liveActive" in updates) liveActive = updates.liveActive;
     if ("inLiveMode" in updates) inLiveMode = updates.inLiveMode;
@@ -948,6 +964,8 @@ initAdminPanels({
   exitLiveMode,
   banner,
   showNoticeInput,
+  broadcastRefresh,
+  setFrozen,
   blockedUids: () => blockedUids,
   blockedList: () => blockedList,
   doUnblock,
@@ -1301,6 +1319,16 @@ function checkIfBlocked() {
   const blocked = !isAdmin && (blockedUids.has(myUid) || blockedFingerprints.has(myFingerprint));
   const hasPetitioned = localStorage.getItem("petitionSent") === myUid;
 
+  if (!isAdmin && isFrozen && !dmMode) {
+    input.disabled = true;
+    input.placeholder = "채팅이 얼려져 있습니다 🧊";
+    sendBtn.hidden = true;
+    document.querySelector(".input-wrap")?.classList.add("frozen-mode");
+    document.querySelector(".input-wrap")?.classList.remove("blocked-mode");
+    document.querySelector(".input-wrap")?.classList.remove("dm-mode");
+    return true;
+  }
+
   if (blocked) {
     if (hasPetitioned) {
       // already sent petition, fully disabled
@@ -1319,9 +1347,17 @@ function checkIfBlocked() {
     }
   } else {
     input.disabled = false;
-    input.placeholder = isAdmin ? "말조심" : "친하게 지내";
-    document.querySelector(".input-wrap")?.classList.remove("dm-mode");
-    document.querySelector(".input-wrap")?.classList.remove("blocked-mode");
+    if (dmMode) {
+      input.placeholder = "찍이에게 보내기";
+      document.querySelector(".input-wrap")?.classList.add("dm-mode");
+      document.querySelector(".input-wrap")?.classList.remove("blocked-mode");
+      document.querySelector(".input-wrap")?.classList.remove("frozen-mode");
+    } else {
+      input.placeholder = isAdmin ? (isFrozen ? "얼려짐 🧊" : "말조심") : "친하게 지내";
+      document.querySelector(".input-wrap")?.classList.remove("dm-mode");
+      document.querySelector(".input-wrap")?.classList.remove("blocked-mode");
+      document.querySelector(".input-wrap")?.classList.remove("frozen-mode");
+    }
     toggleSend();
   }
   return blocked && hasPetitioned;
@@ -1428,6 +1464,7 @@ async function send() {
     if (e.message === "banned") banner("차단되어 전송할 수 없습니다");
     else if (e.message === "rate_limited") banner("너무 빠르게 보내고 있습니다");
     else if (e.message === "banned_word") banner("금지어가 포함되어 전송할 수 없습니다");
+    else if (e.message === "frozen") { isFrozen = true; checkIfBlocked(); banner("채팅이 얼려져 있습니다 🧊"); }
     else banner("전송 실패");
   }
 }
@@ -1643,6 +1680,27 @@ function subscribeCurrentDm() {
   });
 }
 
+async function setFrozen(frozen) {
+  isFrozen = frozen;
+  checkIfBlocked();
+  // broadcast to other clients
+  broadcastFreeze(frozen);
+  // persist to config table
+  if (!IS_MOCK) {
+    await fetch("/api/admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "",
+        action: "setNotice",
+        payload: { text: frozen ? "true" : "", channelId: `frozen_${urlChannel}` }
+      }),
+    });
+  } else {
+    localStorage.setItem(`mock_frozen_${urlChannel}`, frozen ? "true" : "");
+  }
+}
+
 function showPlusMenu(e) {
   document.querySelector(".plus-menu")?.remove();
 
@@ -1662,6 +1720,7 @@ function showPlusMenu(e) {
     menu.remove();
     dmMode = !dmMode;
     updateDmUI();
+    checkIfBlocked();
   });
 
   // position above the + button
@@ -1969,6 +2028,12 @@ function startChat() {
   toggleSend();
   renderNoticeBanner();
 
+  // subscribe to freeze state via config table
+  if (IS_MOCK) {
+    isFrozen = localStorage.getItem(`mock_frozen_${urlChannel}`) === "true";
+    checkIfBlocked();
+  }
+
   // init broadcast channel for instant edits + emoji effects
   if (!IS_MOCK) {
     initBroadcast();
@@ -1988,6 +2053,13 @@ function startChat() {
     });
     onEmojiBroadcast(({ emoji, x, h }) => {
       spawnEmoji(emoji, x, h);
+    });
+    onRefreshBroadcast(() => {
+      window.location.reload();
+    });
+    onFreezeBroadcast(({ frozen }) => {
+      isFrozen = frozen;
+      checkIfBlocked();
     });
   }
 
@@ -2056,6 +2128,30 @@ function startChat() {
       } finally {
         loadingMore = false;
       }
+    }
+  });
+
+  // re-sync messages when tab becomes visible (handles stale WebSocket)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !IS_MOCK) {
+      const newest = allMessages[allMessages.length - 1];
+      const since = newest?.createdAt?.toISOString();
+      fetch(`/api/data?resource=messages&channel_id=${urlChannel}&limit=100`)
+        .then(res => res.json())
+        .then(data => {
+          const fresh = (data.items || []).map(m => ({ ...m, createdAt: m.created_at ? new Date(m.created_at) : null }));
+          if (fresh.length > 0) {
+            const byId = new Map(allMessages.map(m => [m.id, m]));
+            fresh.forEach(m => byId.set(m.id, m));
+            const merged = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            if (merged.length !== allMessages.length) {
+              allMessages = merged;
+              refilterMessages();
+              debouncedRender();
+            }
+          }
+        })
+        .catch(() => {});
     }
   });
 }

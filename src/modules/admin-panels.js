@@ -5,6 +5,7 @@
 import { hashString } from "../utils.js";
 import { showConfirmDialog, showPromptDialog } from "./dialogs.js";
 import { updateEmojiBarPresets } from "./live.js";
+import { showSquareCrop } from "./crop.js";
 
 let deps = {};
 
@@ -42,37 +43,26 @@ export function showAdminPanel() {
       </div>
       <div class="admin-panel-body">
         <div class="admin-panel-section">
-          <button class="admin-panel-item" data-action="notice">
-            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
-            <span class="admin-panel-label">전체 공지</span>
+          <button class="admin-panel-item" data-action="category-channel">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></span>
+            <span class="admin-panel-label">채널</span>
             <span class="admin-panel-arrow">›</span>
           </button>
-          <button class="admin-panel-item" data-action="color">
-            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="14" r="2" fill="currentColor"/><circle cx="16" cy="14" r="2" fill="currentColor"/></svg></span>
-            <span class="admin-panel-label">채널 기본 색상</span>
+          <button class="admin-panel-item" data-action="category-manage">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="admin-panel-label">관리</span>
             <span class="admin-panel-arrow">›</span>
           </button>
-          <button class="admin-panel-item" data-action="passcode">
-            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-            <span class="admin-panel-label">채널 비밀번호</span>
-            <span class="admin-panel-arrow">›</span>
-          </button>
-          <button class="admin-panel-item" data-action="banned-words">
-            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18.36 5.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></span>
-            <span class="admin-panel-label">금지어</span>
-            <span class="admin-panel-arrow">›</span>
-          </button>
-          <button class="admin-panel-item" data-action="blocked">
-            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg></span>
-            <span class="admin-panel-label">차단 사용자</span>
-            <span class="admin-panel-arrow">›</span>
+          <button class="admin-panel-item" data-action="freeze">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 7l-10 10M2 12h20M7 7l10 10"/></svg></span>
+            <span class="admin-panel-label">${deps.getState().isFrozen ? "채팅 해제" : "채팅 얼리기"}</span>
+            <span class="admin-panel-arrow" style="color:${deps.getState().isFrozen ? "#5B5EA6" : ""}">●</span>
           </button>
           <button class="admin-panel-item admin-panel-live" data-action="live">
             <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/></svg></span>
             <span class="admin-panel-label">${liveActive ? "라이브 종료" : "라이브 시작"}</span>
             <span class="admin-panel-arrow" style="color:${liveActive ? "#e74c3c" : ""}">●</span>
           </button>
-          ${liveActive ? `` : ""}
         </div>
       </div>
     </div>
@@ -81,15 +71,22 @@ export function showAdminPanel() {
   panel.querySelector(".admin-panel-close").addEventListener("click", () => panel.remove());
   panel.addEventListener("click", (e) => { if (e.target === panel) panel.remove(); });
 
-  panel.querySelector('[data-action="notice"]').addEventListener("click", () => {
+  panel.querySelector('[data-action="category-channel"]').addEventListener("click", () => { panel.remove(); showChannelCategory(); });
+  panel.querySelector('[data-action="category-manage"]').addEventListener("click", () => { panel.remove(); showManageCategory(); });
+
+  panel.querySelector('[data-action="freeze"]').addEventListener("click", () => {
     panel.remove();
-    showNoticeInput();
-    setTimeout(() => showAdminPanel(), 100);
+    const currentState = getState();
+    if (!currentState.isFrozen) {
+      showConfirmDialog("채팅 얼리기", "채팅을 얼리시겠습니까?<br>관리자만 메시지를 보낼 수 있습니다.", () => {
+        deps.setFrozen(true);
+        banner("채팅이 얼려졌습니다 🧊");
+      });
+    } else {
+      deps.setFrozen(false);
+      banner("채팅이 해제되었습니다");
+    }
   });
-  panel.querySelector('[data-action="color"]').addEventListener("click", () => { panel.remove(); showAdminColorPanel(); });
-  panel.querySelector('[data-action="passcode"]').addEventListener("click", () => { panel.remove(); showAdminPasscodePanel(); });
-  panel.querySelector('[data-action="blocked"]').addEventListener("click", () => { panel.remove(); showBlockedPanel(); });
-  panel.querySelector('[data-action="banned-words"]').addEventListener("click", () => { panel.remove(); showBannedWordsPanel(); });
 
   panel.querySelector('[data-action="live"]').addEventListener("click", async () => {
     panel.remove();
@@ -126,6 +123,104 @@ export function showAdminPanel() {
         banner("라이브가 시작되었습니다");
       });
     }
+  });
+
+  document.body.appendChild(panel);
+}
+
+function showChannelCategory() {
+  const { urlChannel, currentChannelConfig, IS_MOCK, banner, showNoticeInput } = deps;
+
+  const panel = document.createElement("div");
+  panel.className = "admin-panel";
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>채널</h3>
+        <button class="admin-panel-close">✕</button>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-panel-section">
+          <button class="admin-panel-item" data-action="profile">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <span class="admin-panel-label">채널 프로필</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="color">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="14" r="2" fill="currentColor"/><circle cx="16" cy="14" r="2" fill="currentColor"/></svg></span>
+            <span class="admin-panel-label">채널 기본 색상</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="passcode">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <span class="admin-panel-label">채널 비밀번호</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="notice">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+            <span class="admin-panel-label">전체 공지</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".admin-panel-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
+  panel.querySelector('[data-action="profile"]').addEventListener("click", () => { panel.remove(); showProfilePanel(); });
+  panel.querySelector('[data-action="color"]').addEventListener("click", () => { panel.remove(); showAdminColorPanel(); });
+  panel.querySelector('[data-action="passcode"]').addEventListener("click", () => { panel.remove(); showAdminPasscodePanel(); });
+  panel.querySelector('[data-action="notice"]').addEventListener("click", () => { panel.remove(); showNoticeInput(); });
+
+  document.body.appendChild(panel);
+}
+
+function showManageCategory() {
+  const { urlChannel, IS_MOCK, getState, banner } = deps;
+
+  const panel = document.createElement("div");
+  panel.className = "admin-panel";
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>관리</h3>
+        <button class="admin-panel-close">✕</button>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-panel-section">
+          <button class="admin-panel-item" data-action="banned-words">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18.36 5.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></span>
+            <span class="admin-panel-label">금지어</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="blocked">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg></span>
+            <span class="admin-panel-label">차단 사용자</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+          <button class="admin-panel-item" data-action="refresh">
+            <span class="admin-panel-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></span>
+            <span class="admin-panel-label">전체 새로고침</span>
+            <span class="admin-panel-arrow">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".admin-panel-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
+  panel.querySelector('[data-action="banned-words"]').addEventListener("click", () => { panel.remove(); showBannedWordsPanel(); });
+  panel.querySelector('[data-action="blocked"]').addEventListener("click", () => { panel.remove(); showBlockedPanel(); });
+
+  panel.querySelector('[data-action="refresh"]').addEventListener("click", () => {
+    panel.remove();
+    showConfirmDialog("전체 새로고침", "접속 중인 모든 사용자를 새로고침할까요?", () => {
+      deps.broadcastRefresh();
+      banner("새로고침 신호를 보냈습니다");
+      setTimeout(() => window.location.reload(), 500);
+    });
   });
 
   document.body.appendChild(panel);
@@ -336,8 +431,8 @@ export function showAdminPasscodePanel() {
         <div class="admin-color-info" style="margin-bottom:16px;">현재 채널: ${currentChannelConfig.name}</div>
         <input class="passcode-dialog-input" type="text" placeholder="새 비밀번호 입력" autocomplete="off" style="margin-bottom:8px;" />
         <div class="admin-color-info" style="margin-bottom:16px;font-size:11px;">비우면 비밀번호 해제</div>
-        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:400;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
-        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:400;"></div>
+        <button class="admin-passcode-save" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
+        <div class="admin-passcode-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;font-weight:500;"></div>
       </div>
     </div>
   `;
@@ -557,4 +652,132 @@ export function showBlockedPanel() {
   });
 
   document.body.appendChild(panel);
+}
+
+export function showProfilePanel() {
+  const { urlChannel, currentChannelConfig, IS_MOCK, banner } = deps;
+
+  document.querySelector(".profile-panel")?.remove();
+
+  const currentName = document.querySelector(".hdr-name")?.textContent || currentChannelConfig.name;
+  const currentImg = document.querySelector(".hdr-avatar-img")?.src || currentChannelConfig.profile;
+
+  const panel = document.createElement("div");
+  panel.className = "profile-panel";
+
+  panel.innerHTML = `
+    <div class="admin-panel-content">
+      <div class="admin-panel-header">
+        <h3>채널 프로필</h3>
+        <button class="profile-panel-close">✕</button>
+      </div>
+      <div class="admin-panel-body" style="padding:20px 18px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:24px;">
+          <div class="profile-img-preview" style="width:80px;height:80px;border-radius:20px;overflow:hidden;border:2px dashed #ddd;cursor:pointer;display:flex;align-items:center;justify-content:center;background:#f8f8f8;">
+            <img src="${currentImg}" style="width:100%;height:100%;object-fit:cover;" />
+          </div>
+          <button class="profile-img-btn" style="background:#f4f4f4;border:1px solid #e0e0e0;border-radius:10px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit;color:#555;">사진 변경</button>
+          <input type="file" class="profile-img-input" accept="image/*" style="display:none;" />
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px;color:#aaa;font-weight:700;margin-bottom:8px;">채널 이름</div>
+          <input class="profile-name-input" type="text" value="${currentName}" maxlength="20" style="width:100%;background:#f8f8f8;border:1.5px solid #e0e0e0;border-radius:12px;padding:11px 14px;font-size:14px;color:#333;font-family:inherit;box-sizing:border-box;outline:none;" />
+        </div>
+        <button class="profile-save-btn" style="width:100%;background:var(--bubble-sent,#3b8df0);border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:500;color:#fff;cursor:pointer;font-family:inherit;">저장</button>
+        <div class="profile-result" style="display:none;margin-top:10px;font-size:12px;text-align:center;color:#2ecc71;"></div>
+      </div>
+    </div>
+  `;
+
+  panel.querySelector(".profile-panel-close").addEventListener("click", () => { showAdminPanel(); panel.remove(); });
+  panel.addEventListener("click", (e) => { if (e.target === panel) { showAdminPanel(); panel.remove(); } });
+
+  const imgPreview = panel.querySelector(".profile-img-preview img");
+  const fileInput = panel.querySelector(".profile-img-input");
+  const nameInput = panel.querySelector(".profile-name-input");
+  const resultEl = panel.querySelector(".profile-result");
+  let croppedBlob = null;
+
+  // click image or button to upload
+  panel.querySelector(".profile-img-preview").addEventListener("click", () => fileInput.click());
+  panel.querySelector(".profile-img-btn").addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileInput.value = "";
+    showSquareCrop(file, (blob) => {
+      croppedBlob = blob;
+      imgPreview.src = URL.createObjectURL(blob);
+    });
+  });
+
+  // save
+  panel.querySelector(".profile-save-btn").addEventListener("click", async () => {
+    const newName = nameInput.value.trim();
+    if (!newName) return;
+
+    const passcode = localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "";
+
+    // upload cropped image if changed
+    if (croppedBlob && !IS_MOCK) {
+      const imageBase64 = await blobToDataUrl(croppedBlob);
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passcode,
+          action: "uploadProfile",
+          payload: { channelId: urlChannel, imageBase64 }
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        const hdrImg = document.querySelector(".hdr-avatar-img");
+        if (hdrImg) hdrImg.src = data.url;
+      }
+    } else if (croppedBlob && IS_MOCK) {
+      const url = URL.createObjectURL(croppedBlob);
+      localStorage.setItem(`mock_profile_${urlChannel}`, url);
+      const hdrImg = document.querySelector(".hdr-avatar-img");
+      if (hdrImg) hdrImg.src = url;
+    }
+
+    // save name
+    if (!IS_MOCK) {
+      await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passcode,
+          action: "setChannelName",
+          payload: { channelId: urlChannel, name: newName }
+        }),
+      });
+    } else {
+      localStorage.setItem(`mock_channelName_${urlChannel}`, newName);
+    }
+
+    // update header immediately
+    const hdrName = document.querySelector(".hdr-name");
+    if (hdrName) hdrName.textContent = newName;
+
+    resultEl.textContent = "✓ 저장됨";
+    resultEl.style.display = "block";
+    setTimeout(() => { resultEl.style.display = "none"; }, 2000);
+  });
+
+  nameInput.addEventListener("focus", (e) => e.target.style.borderColor = "#3b8df0");
+  nameInput.addEventListener("blur", (e) => e.target.style.borderColor = "#e0e0e0");
+
+  document.body.appendChild(panel);
+  nameInput.focus();
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
 }
