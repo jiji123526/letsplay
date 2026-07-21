@@ -132,6 +132,39 @@ body {
   visibility: hidden;
 }
 
+/* skeleton loading placeholder */
+.skeleton-loading {
+  visibility: visible;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--bubble-font-size, 17px) * 0.18);
+  padding: 12px 14px;
+  animation: skeleton-fade 1.5s infinite ease-in-out;
+}
+@keyframes skeleton-fade {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.skeleton-row {
+  display: flex;
+}
+.skeleton-row.sent { justify-content: flex-end; }
+.skeleton-row.recv { justify-content: flex-start; }
+.skeleton-bubble {
+  border-radius: 18px;
+  height: calc(var(--bubble-font-size, 17px) * 1.38 + 20px);
+}
+.skeleton-row.recv .skeleton-bubble {
+  background: var(--bubble-recv, #e9e9eb);
+}
+.skeleton-row.sent .skeleton-bubble {
+  background: var(--bubble-sent, #3b8df0);
+  opacity: 0.5;
+}
+.skeleton-bubble.short { width: 25%; }
+.skeleton-bubble.medium { width: 45%; }
+.skeleton-bubble.long { width: 65%; }
+
 /* day / time separator */
 .time-sep {
   align-self: center;

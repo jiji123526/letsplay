@@ -35,7 +35,21 @@
     </header>
 
     <!-- Messages -->
-    <main class="messages" id="messages"></main>
+    <main class="messages" id="messages">
+      <!-- Skeleton loading placeholder (removed on first render) -->
+      <div class="skeleton-loading">
+        <div class="skeleton-row recv"><div class="skeleton-bubble short"></div></div>
+        <div class="skeleton-row recv"><div class="skeleton-bubble long"></div></div>
+        <div class="skeleton-row sent"><div class="skeleton-bubble medium"></div></div>
+        <div class="skeleton-row recv"><div class="skeleton-bubble medium"></div></div>
+        <div class="skeleton-row sent"><div class="skeleton-bubble short"></div></div>
+        <div class="skeleton-row sent"><div class="skeleton-bubble long"></div></div>
+        <div class="skeleton-row recv"><div class="skeleton-bubble short"></div></div>
+        <div class="skeleton-row sent"><div class="skeleton-bubble medium"></div></div>
+        <div class="skeleton-row recv"><div class="skeleton-bubble long"></div></div>
+        <div class="skeleton-row sent"><div class="skeleton-bubble short"></div></div>
+      </div>
+    </main>
 
     <!-- Scroll to bottom -->
     <button class="scroll-bottom-btn" id="scrollBottomBtn" aria-label="Scroll to bottom">

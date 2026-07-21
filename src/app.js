@@ -333,6 +333,7 @@ function render() {
     requestAnimationFrame(() => {
       messagesEl.scrollTop = messagesEl.scrollHeight;
       messagesEl.style.visibility = "visible";
+      document.querySelector(".skeleton-loading")?.remove();
     });
   } else if (nearBottom && !initialLoad) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
