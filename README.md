@@ -13,12 +13,17 @@ A real-time anonymous chat application with multi-channel support, built with va
 - GIF support (no compression, preserves animation)
 - Link previews with OG meta scraping
 - Native Twitter/X, Instagram, and YouTube embeds (preserved across re-renders)
+- Long messages (>1000 chars) auto-truncated with expandable post overlay
 - Full-text search with keyboard dismiss detection
 - Dark/light theme (follows system preference)
 - Customizable bubble color (7 presets + custom picker)
-- Adjustable font size (scales bubbles, gaps, and UI elements)
+- Adjustable font size (scales all UI elements proportionally)
 - Typing indicator (bouncing dots) for incoming image messages
 - Skeleton loading screen on initial page load
+- Unread message count badge on scroll-to-bottom button
+- Offline/reconnection status banner
+- Image lazy loading for bandwidth efficiency
+- Photo restoration on send failure
 
 ### Multi-Channel
 - Multiple channels via URL (`/ch/channel-id`)
@@ -26,7 +31,7 @@ A real-time anonymous chat application with multi-channel support, built with va
 - Per-channel bubble color defaults
 - Per-channel notice banners (title + optional expandable body)
 - Per-channel blocked users
-- Per-channel profile (name + image, admin-configurable)
+- Per-channel profile (name + image, admin-configurable with square crop)
 - Channel picker with profile images
 
 ### Live Mode
@@ -40,8 +45,8 @@ A real-time anonymous chat application with multi-channel support, built with va
 ### Admin
 - Categorized admin panel (채널 / 관리)
 - Channel settings: profile (with square crop), color, passcode, notice
-- Management: banned words, blocked users, force refresh, chat freeze
-- Chat freeze: disables public messaging, users can still send DMs
+- Management: banned words, blocked users, force refresh
+- Chat freeze: disables public messaging, users can still toggle DM
 - Force refresh: broadcast reload to all connected clients
 - `is_admin` flag re-verified server-side on every message and on page load
 - Cross-device admin color sync via Supabase
@@ -205,6 +210,7 @@ All initial data is fetched in a single `/api/init` request:
 - Gallery items
 - Blocked list (admin only)
 - Config: freeze state, channel name, profile image, notice, live status
+- DMs (admin only)
 
 Subscriptions use preloaded data and skip redundant fetches. Falls back to individual requests with a 4-second timeout if init fails.
 
@@ -214,6 +220,8 @@ Subscriptions use preloaded data and skip redundant fetches. Falls back to indiv
 - Reaction-only DOM patching without full re-render
 - Fast append path for new messages (skips full rebuild)
 - Visibility sync throttled to max once per 5 seconds
+- Image lazy loading for off-screen content
+- Long messages truncated in DOM (full text loaded on demand)
 
 ## Broadcasting
 
@@ -239,6 +247,7 @@ All writes go through Vercel serverless functions using the service role key. Th
 | Admin API access | Every call requires `ADMIN_PASSCODE` — IP rate-limited on failures (10/hour) |
 | Ban enforcement | UID and browser fingerprint checked on every message send |
 | Rate limiting | 5 messages per 10 seconds per UID, server-side |
+| Message length | Capped at 5000 characters server-side |
 | Banned words | Checked server-side on every message insert |
 | Chat freeze | Server rejects non-admin messages when frozen |
 | Own-message enforcement | Delete/edit verify `msg.uid === uid` server-side |
