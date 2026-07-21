@@ -445,12 +445,29 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           img.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
           img.style.width = "100%";
         }
+        // loading state while image downloads (only for new incoming messages)
+        const isRecent = m.createdAt && (Date.now() - m.createdAt.getTime() < 10000);
+        if (isRecent) {
+          imgWrap.style.display = "none";
+          bubble.classList.add("bubble-loading");
+          const loadingDots = document.createElement("div");
+          loadingDots.className = "typing-dots";
+          loadingDots.innerHTML = "<span></span><span></span><span></span>";
+          bubble.appendChild(loadingDots);
+          img.addEventListener("load", () => {
+            imgWrap.style.display = "";
+            bubble.classList.remove("bubble-loading");
+            loadingDots.remove();
+          });
+        }
         // handle load failure with tap-to-retry
         img.addEventListener("error", () => {
           imgWrap.classList.add("img-failed");
+          imgWrap.style.aspectRatio = "";
           imgWrap.innerHTML = `<div class="img-placeholder">탭하여 다시 시도</div>`;
-          if (m.imageW && m.imageH) {
-            imgWrap.style.aspectRatio = `${m.imageW} / ${m.imageH}`;
+          if (bubble.classList.contains("bubble-loading")) {
+            bubble.classList.remove("bubble-loading");
+            bubble.querySelector(".typing-dots")?.remove();
           }
           imgWrap.addEventListener("click", () => {
             imgWrap.classList.remove("img-failed");
@@ -465,6 +482,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
             }
             retryImg.addEventListener("error", () => {
               imgWrap.classList.add("img-failed");
+              imgWrap.style.aspectRatio = "";
               imgWrap.innerHTML = `<div class="img-placeholder">이미지를 불러올 수 없습니다</div>`;
             });
             imgWrap.appendChild(retryImg);
@@ -481,8 +499,23 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         imgWrap.appendChild(expandBtn);
         bubble.appendChild(imgWrap);
       } else {
-        // gallery item was deleted — show caption if exists, otherwise placeholder
-        if (m.text) {
+        // gallery item not loaded yet or was deleted
+        if (m.galleryId && !galleryItems.some((g) => g.id === m.galleryId)) {
+          const isRecent = m.createdAt && (Date.now() - m.createdAt.getTime() < 10000);
+          if (isRecent) {
+            // still loading — show typing indicator
+            bubble.classList.add("bubble-loading");
+            const dots = document.createElement("div");
+            dots.className = "typing-dots";
+            dots.innerHTML = "<span></span><span></span><span></span>";
+            bubble.appendChild(dots);
+          } else if (m.text) {
+            bubble.textContent = m.text;
+          } else {
+            bubble.textContent = "삭제된 사진입니다";
+            bubble.classList.add("deleted");
+          }
+        } else if (m.text) {
           bubble.textContent = m.text;
         } else {
           bubble.textContent = "삭제된 사진입니다";

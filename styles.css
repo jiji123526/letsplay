@@ -149,13 +149,13 @@ body {
   align-items: flex-end;
   gap: 6px;
   max-width: 100%;
-  padding-top: 3px;
+  padding-top: calc(var(--bubble-font-size, 17px) * 0.18);
 }
 .row.sent   { justify-content: flex-end; }
 .row.recv   { justify-content: flex-start; }
 
 /* extra space before a new group */
-.row.group-start { padding-top: 8px; }
+.row.group-start { padding-top: calc(var(--bubble-font-size, 17px) * 0.47); }
 
 .bubble-col { display: flex; flex-direction: column; max-width: 74%; }
 .row.sent .bubble-col { align-items: flex-end; }
@@ -2265,6 +2265,39 @@ emoji-picker {
   background: #2a2a2a;
   border-color: #444;
   color: #fff;
+}
+
+/* ---------- image/message loading state (typing indicator) ---------- */
+.bubble.bubble-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  height: calc(var(--bubble-font-size, 17px) * 1.38 + 20px);
+  line-height: 0;
+  font-size: 0;
+}
+.typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.typing-dots span {
+  width: calc(var(--bubble-font-size, 17px) * 0.47);
+  height: calc(var(--bubble-font-size, 17px) * 0.47);
+  border-radius: 50%;
+  background: #999;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+[data-theme="dark"] .typing-dots span {
+  background: #777;
 }
 
 /* ---------- image load failure ---------- */
