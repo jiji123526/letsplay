@@ -83,6 +83,16 @@ export default async function handler(req, res) {
       return res.json({ items: [parseLiveStatus(data?.text)] });
     }
 
+    if (resource === "freeze_status") {
+      const { data, error } = await supabase
+        .from("config")
+        .select("text")
+        .eq("id", `notice_frozen_${channelId}`)
+        .maybeSingle();
+      if (error) throw error;
+      return res.json({ items: [{ frozen: data?.text === "true" }] });
+    }
+
     if (resource === "gallery") {
       const { data, error } = await supabase
         .from("gallery")

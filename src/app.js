@@ -2033,14 +2033,11 @@ function startChat() {
     isFrozen = localStorage.getItem(`mock_frozen_${urlChannel}`) === "true";
     checkIfBlocked();
   } else {
-    // fetch freeze state from config on load
-    fetch("/api/admin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "", action: "getConfig", payload: { key: `notice_frozen_${urlChannel}` } })
-    }).then(r => r.json()).then(d => {
-      if (d.value === "true") { isFrozen = true; checkIfBlocked(); }
-    }).catch(() => {});
+    // fetch freeze state from config on load (public, no admin auth needed)
+    fetch(`/api/data?resource=freeze_status&channel_id=${urlChannel}`)
+      .then(r => r.json()).then(d => {
+        if (d.items?.[0]?.frozen) { isFrozen = true; checkIfBlocked(); }
+      }).catch(() => {});
   }
 
   // init broadcast channel for instant edits + emoji effects
