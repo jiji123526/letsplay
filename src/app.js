@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, initFromServer, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastProfile, onProfileBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, initFromServer, onConnectionChange, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastProfile, onProfileBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, embedYouTube, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -2122,6 +2122,27 @@ function startChat() {
     onProfileBroadcast(({ name, image }) => {
       if (name) document.querySelector(".hdr-name").textContent = name;
       if (image) document.querySelector(".hdr-avatar-img").src = image;
+    });
+  }
+
+  // connection status indicator
+  if (!IS_MOCK) {
+    onConnectionChange((connected) => {
+      let indicator = document.querySelector(".connection-banner");
+      if (!connected) {
+        if (!indicator) {
+          indicator = document.createElement("div");
+          indicator.className = "connection-banner";
+          indicator.textContent = "연결이 끊겼습니다";
+          document.querySelector(".chat-header").insertAdjacentElement("afterend", indicator);
+        }
+      } else {
+        if (indicator) {
+          indicator.textContent = "다시 연결되었습니다";
+          indicator.classList.add("connected");
+          setTimeout(() => indicator.remove(), 2000);
+        }
+      }
     });
   }
 

@@ -19,6 +19,44 @@ const publicRealtime = createClient(supabaseConfig.url, supabaseConfig.anonKey, 
 
 let currentUser = null;
 let channelId = "main"; // default channel
+
+/* ---- Connection monitoring ---- */
+let connectionListeners = new Set();
+let isConnected = true;
+let disconnectTimer = null;
+
+export function onConnectionChange(cb) {
+  connectionListeners.add(cb);
+  return () => connectionListeners.delete(cb);
+}
+
+function monitorConnection() {
+  // Monitor the publicRealtime socket (used for message signals)
+  const socket = publicRealtime.realtime;
+  if (!socket) return;
+
+  socket.onOpen(() => {
+    if (!isConnected) {
+      isConnected = true;
+      clearTimeout(disconnectTimer);
+      disconnectTimer = null;
+      connectionListeners.forEach(cb => cb(true));
+    }
+  });
+
+  socket.onClose(() => {
+    // Only notify after 3 seconds of disconnect (ignore brief blips)
+    if (!disconnectTimer) {
+      disconnectTimer = setTimeout(() => {
+        isConnected = false;
+        connectionListeners.forEach(cb => cb(false));
+      }, 3000);
+    }
+  });
+}
+
+// Start monitoring after first subscription
+setTimeout(monitorConnection, 2000);
 let adminCredential = null;
 let clientFingerprint = "";
 

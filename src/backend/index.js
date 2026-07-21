@@ -17,6 +17,7 @@ if (USE_MOCK || BACKEND === "mock") {
 
 export const initAuth           = impl.initAuth;
 export const initFromServer     = impl.initFromServer || (async () => null);
+export const onConnectionChange = impl.onConnectionChange || (() => () => {});
 export const subscribe          = impl.subscribe;
 export const sendMessage        = impl.sendMessage;
 export const removeMessage      = impl.removeMessage;
