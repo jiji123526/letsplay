@@ -328,13 +328,15 @@ function render() {
 
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
-    hasScrolledInitial = true;
-    // defer to next frame so browser finishes layout before we scroll
-    requestAnimationFrame(() => {
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-      messagesEl.style.visibility = "visible";
-      document.querySelector(".skeleton-loading")?.remove();
-    });
+    // only reveal when real messages are loaded (not just DMs)
+    if (allMessages.length > 0 || !isAdmin) {
+      hasScrolledInitial = true;
+      requestAnimationFrame(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        messagesEl.style.visibility = "visible";
+        document.querySelector(".skeleton-loading")?.remove();
+      });
+    }
   } else if (nearBottom && !initialLoad) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
