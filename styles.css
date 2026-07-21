@@ -1967,17 +1967,6 @@ emoji-picker {
 .admin-panel-body {
   padding: 8px 0;
 }
-.admin-panel-section-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--meta, #999);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 12px 18px 6px;
-}
-.admin-panel-section-label:first-child {
-  padding-top: 4px;
-}
 .admin-panel-section {
   display: flex;
   flex-direction: column;

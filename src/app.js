@@ -1666,6 +1666,7 @@ function subscribeCurrentGallery() {
     galleryItems = list;
     if (!galleryLoaded) {
       galleryLoaded = true;
+      refilterMessages();
       render();
     } else {
       debouncedRender();
