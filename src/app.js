@@ -458,6 +458,8 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
             imgWrap.style.display = "";
             bubble.classList.remove("bubble-loading");
             loadingDots.remove();
+            const pendingCaption = bubble.querySelector("[data-pending-caption]");
+            if (pendingCaption) { pendingCaption.style.display = ""; delete pendingCaption.dataset.pendingCaption; }
           });
         }
         // handle load failure with tap-to-retry
@@ -526,6 +528,11 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
         const caption = document.createElement("div");
         caption.className = "bubble-caption";
         caption.textContent = m.text;
+        // hide caption while loading dots are showing
+        if (bubble.classList.contains("bubble-loading")) {
+          caption.style.display = "none";
+          caption.dataset.pendingCaption = "true";
+        }
         bubble.appendChild(caption);
       }
     } else {
