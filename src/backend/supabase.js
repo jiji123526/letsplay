@@ -255,6 +255,7 @@ let editListeners = new Set();
 let deleteListeners = new Set();
 let refreshListeners = new Set();
 let freezeListeners = new Set();
+let profileListeners = new Set();
 let emojiListeners = new Set();
 let dmChangeListeners = new Set();
 
@@ -273,6 +274,9 @@ export function initBroadcast() {
     })
     .on("broadcast", { event: "freeze-change" }, ({ payload }) => {
       freezeListeners.forEach(cb => cb(payload));
+    })
+    .on("broadcast", { event: "profile-change" }, ({ payload }) => {
+      profileListeners.forEach(cb => cb(payload));
     })
     .on("broadcast", { event: "emoji-fx" }, ({ payload }) => {
       emojiListeners.forEach(cb => cb(payload));
@@ -344,6 +348,21 @@ export function broadcastFreeze(frozen) {
       type: "broadcast",
       event: "freeze-change",
       payload: { frozen },
+    });
+  }
+}
+
+export function onProfileBroadcast(cb) {
+  profileListeners.add(cb);
+  return () => profileListeners.delete(cb);
+}
+
+export function broadcastProfile(profile) {
+  if (broadcastChannel) {
+    broadcastChannel.send({
+      type: "broadcast",
+      event: "profile-change",
+      payload: profile,
     });
   }
 }

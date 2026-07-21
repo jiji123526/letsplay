@@ -93,6 +93,14 @@ export default async function handler(req, res) {
       return res.json({ items: [{ frozen: data?.text === "true" }] });
     }
 
+    if (resource === "channel_profile") {
+      const [nameResult, imgResult] = await Promise.all([
+        supabase.from("config").select("text").eq("id", `channelName_${channelId}`).maybeSingle(),
+        supabase.from("config").select("text").eq("id", `profile_img_${channelId}`).maybeSingle(),
+      ]);
+      return res.json({ items: [{ name: nameResult.data?.text || null, image: imgResult.data?.text || null }] });
+    }
+
     if (resource === "gallery") {
       const { data, error } = await supabase
         .from("gallery")

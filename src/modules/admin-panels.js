@@ -762,6 +762,9 @@ export function showProfilePanel() {
     const hdrName = document.querySelector(".hdr-name");
     if (hdrName) hdrName.textContent = newName;
 
+    // broadcast to other users
+    deps.broadcastProfile({ name: newName, image: document.querySelector(".hdr-avatar-img")?.src || null });
+
     resultEl.textContent = "✓ 저장됨";
     resultEl.style.display = "block";
     setTimeout(() => { resultEl.style.display = "none"; }, 2000);

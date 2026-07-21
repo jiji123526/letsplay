@@ -55,5 +55,7 @@ export const broadcastRefresh   = impl.broadcastRefresh || (() => {});
 export const onRefreshBroadcast = impl.onRefreshBroadcast || (() => () => {});
 export const broadcastFreeze    = impl.broadcastFreeze || (() => {});
 export const onFreezeBroadcast  = impl.onFreezeBroadcast || (() => () => {});
+export const broadcastProfile   = impl.broadcastProfile || (() => {});
+export const onProfileBroadcast = impl.onProfileBroadcast || (() => () => {});
 export const broadcastEmoji     = impl.broadcastEmoji || (() => {});
 export const IS_MOCK            = USE_MOCK || BACKEND === "mock";

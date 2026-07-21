@@ -9,7 +9,7 @@
    Renders blue "sent" when uid === my uid, else gray "recv".
    ============================================================ */
 
-import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
+import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastProfile, onProfileBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
 import { embedTwitter, embedInstagram, embedYouTube, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
@@ -799,10 +799,12 @@ document.querySelector(".hdr-avatar-img").src = currentChannelConfig.profile;
 
 // load saved channel name and profile from config
 if (!IS_MOCK) {
-  fetch(`/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "", action: "getColor", payload: { channelId: `channelName_${urlChannel}` } }) })
-    .then(r => r.json()).then(d => { if (d.color) document.querySelector(".hdr-name").textContent = d.color; }).catch(() => {});
-  fetch(`/api/admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: localStorage.getItem("ap") ? atob(localStorage.getItem("ap")) : "", action: "getColor", payload: { channelId: `profile_img_${urlChannel}` } }) })
-    .then(r => r.json()).then(d => { if (d.color) document.querySelector(".hdr-avatar-img").src = d.color; }).catch(() => {});
+  fetch(`/api/data?resource=channel_profile&channel_id=${urlChannel}`)
+    .then(r => r.json()).then(d => {
+      const profile = d.items?.[0];
+      if (profile?.name) document.querySelector(".hdr-name").textContent = profile.name;
+      if (profile?.image) document.querySelector(".hdr-avatar-img").src = profile.image;
+    }).catch(() => {});
 } else {
   const mockName = localStorage.getItem(`mock_channelName_${urlChannel}`);
   if (mockName) document.querySelector(".hdr-name").textContent = mockName;
@@ -968,6 +970,7 @@ initAdminPanels({
   banner,
   showNoticeInput,
   broadcastRefresh,
+  broadcastProfile,
   setFrozen,
   blockedUids: () => blockedUids,
   blockedList: () => blockedList,
@@ -2072,6 +2075,10 @@ function startChat() {
       if (!isAdmin) {
         banner(frozen ? "채팅이 얼려졌습니다 🧊" : "채팅이 해제되었습니다", frozen ? "#5B5EA6" : "#34c759");
       }
+    });
+    onProfileBroadcast(({ name, image }) => {
+      if (name) document.querySelector(".hdr-name").textContent = name;
+      if (image) document.querySelector(".hdr-avatar-img").src = image;
     });
   }
 
