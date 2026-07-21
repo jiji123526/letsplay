@@ -26,6 +26,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "missing fields" });
     }
 
+    // message length limit
+    if (text && text.length > 5000) {
+      return res.status(400).json({ error: "too_long" });
+    }
+
     // Never trust the client-side is_admin flag by itself. Admin messages must
     // prove admin access on the server before bypassing user restrictions.
     const configuredAdminPasscode = process.env.ADMIN_PASSCODE;

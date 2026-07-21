@@ -551,7 +551,15 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
 
       if (m.text.match(urlRegex)) {
         const urls = m.text.match(urlRegex);
-        appendTextWithLinks(bubble, m.text, urlRegex);
+        const displayText = m.text.length > 1000 ? m.text.slice(0, 1000) + "…" : m.text;
+        appendTextWithLinks(bubble, displayText, urlRegex);
+        if (m.text.length > 1000) {
+          const moreBtn = document.createElement("button");
+          moreBtn.className = "bubble-more-btn";
+          moreBtn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13l5 5 5-5"/><path d="M7 6l5 5 5-5"/></svg>';
+          moreBtn.addEventListener("click", (e) => { e.stopPropagation(); showPostOverlay(m.text, m); });
+          bubble.appendChild(moreBtn);
+        }
         // embed or preview for each URL
         urls.forEach((url) => {
           const fullUrl = url.startsWith("http") ? url : `https://${url}`;
@@ -573,7 +581,16 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
           if (next && next.nodeType === 3) next.textContent = next.textContent.replace(/^\s*\n/, "");
         });
       } else {
-        bubble.textContent = m.text;
+        if (m.text.length > 1000) {
+          bubble.textContent = m.text.slice(0, 1000) + "…";
+          const moreBtn = document.createElement("button");
+          moreBtn.className = "bubble-more-btn";
+          moreBtn.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13l5 5 5-5"/><path d="M7 6l5 5 5-5"/></svg>';
+          moreBtn.addEventListener("click", (e) => { e.stopPropagation(); showPostOverlay(m.text, m); });
+          bubble.appendChild(moreBtn);
+        } else {
+          bubble.textContent = m.text;
+        }
       }
       if (m.edited) {
         const edited = document.createElement("span");
@@ -1563,6 +1580,33 @@ async function findMessageByGalleryId(galleryId) {
     if (msg) return msg.id;
   } catch {}
   return null;
+}
+
+function showPostOverlay(fullText, msg) {
+  document.querySelector(".post-overlay")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "post-overlay";
+
+  const content = document.createElement("div");
+  content.className = "post-overlay-content";
+
+  const header = document.createElement("div");
+  header.className = "post-overlay-header";
+  header.innerHTML = `<span></span><button class="post-overlay-close">✕</button>`;
+
+  const body = document.createElement("div");
+  body.className = "post-overlay-body";
+  body.textContent = fullText;
+
+  content.appendChild(header);
+  content.appendChild(body);
+  overlay.appendChild(content);
+
+  overlay.querySelector(".post-overlay-close").addEventListener("click", () => overlay.remove());
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+  document.body.appendChild(overlay);
 }
 
 /* ============================================================
