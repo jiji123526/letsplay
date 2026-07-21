@@ -280,11 +280,11 @@ function render() {
   // separate top-level messages, replies, and reports
   const topLevel = [];
   const repliesMap = {}; // parentId -> [reply messages]
+  const messageIds = new Set(messages.map(m => m.id));
 
   messages.forEach((m) => {
     if (m.replyTo) {
-      const parent = messages.find((p) => p.id === m.replyTo);
-      if (parent) {
+      if (messageIds.has(m.replyTo)) {
         if (!repliesMap[m.replyTo]) repliesMap[m.replyTo] = [];
         repliesMap[m.replyTo].push(m);
       } else {
@@ -2151,10 +2151,12 @@ function startChat() {
   });
 
   // re-sync messages when tab becomes visible (handles stale WebSocket)
+  let lastVisibilitySync = 0;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !IS_MOCK) {
-      const newest = allMessages[allMessages.length - 1];
-      const since = newest?.createdAt?.toISOString();
+      const now = Date.now();
+      if (now - lastVisibilitySync < 5000) return; // throttle: max once per 5s
+      lastVisibilitySync = now;
       fetch(`/api/data?resource=messages&channel_id=${urlChannel}&limit=100`)
         .then(res => res.json())
         .then(data => {
