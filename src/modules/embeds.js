@@ -74,6 +74,38 @@ export function embedInstagram(url, bubble) {
   }
 }
 
+export function embedYouTube(url, bubble) {
+  // extract video ID from various YouTube URL formats
+  const match = url.match(/(?:[?&]v=|youtu\.be\/|shorts\/)([\w-]+)/);
+  const videoId = match?.[1];
+  if (!videoId) return;
+
+  // hide the link text
+  const link = bubble.querySelector(`.bubble-link[href="${url}"]`) || bubble.querySelector(`.bubble-link`);
+  if (link) link.style.display = "none";
+
+  const isShorts = url.includes("/shorts/");
+  const container = document.createElement("div");
+  container.className = "embed-youtube";
+  container.style.borderRadius = "12px";
+  container.style.overflow = "hidden";
+  container.style.maxWidth = "320px";
+  container.style.background = "#000";
+
+  const iframe = document.createElement("iframe");
+  iframe.width = "320";
+  iframe.height = isShorts ? "568" : "180";
+  iframe.src = `https://www.youtube.com/embed/${videoId}`;
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+  iframe.allowFullscreen = true;
+  iframe.style.display = "block";
+  iframe.style.maxWidth = "100%";
+  iframe.style.border = "0";
+
+  container.appendChild(iframe);
+  bubble.appendChild(container);
+}
+
 export async function fetchLinkPreview(url, bubble) {
   if (previewCache[url]) {
     renderPreviewCard(previewCache[url], bubble);

@@ -11,7 +11,7 @@
 
 import { initAuth, subscribe, sendMessage, removeMessage, softDeleteMessage, editMessage, addReaction as addReactionBackend, removeReaction as removeReactionBackend, blockUser, getBlockedUsers, subscribeBlocked, sendDm, removeDm, subscribeDm, saveToGallery, subscribeGallery, removeFromGallery, setNotice, subscribeNotice, searchMessages, loadMoreMessages, setChannel, setAdminCredential, setClientFingerprint, getChannelPasscode, subscribeLiveStatus, broadcastLiveStatus, subscribeLivePresence, initBroadcast, onEditBroadcast, onEmojiBroadcast, broadcastEdit, broadcastDelete, onDeleteBroadcast, broadcastRefresh, onRefreshBroadcast, broadcastFreeze, onFreezeBroadcast, broadcastEmoji, IS_MOCK } from "./backend/index.js";
 import { verifyAdmin, setAdminPasscode, getAdminPasscode, adminDeleteMessage, adminDeleteMessages, adminUpdateMessage, adminBlock, adminUnblock, adminDeleteDm, adminDeleteGallery, adminSetNotice, adminSetColor, adminGetColor, adminSetPasscode, adminGetPasscode, adminStartLive, adminEndLive } from "./admin/api.js";
-import { embedTwitter, embedInstagram, fetchLinkPreview } from "./modules/embeds.js";
+import { embedTwitter, embedInstagram, embedYouTube, fetchLinkPreview } from "./modules/embeds.js";
 import { compressImage, getImageDimensions, showFullImage as showFullImageBase } from "./modules/photo.js";
 import { showGallery as showGalleryBase } from "./modules/gallery.js";
 import { showLinks as showLinksBase } from "./modules/links-panel.js";
@@ -263,7 +263,7 @@ function render() {
   // Identify rows with embeds that haven't changed — we'll preserve them in-place
   const preservedRows = new Map(); // msgId → DOM row
   messagesEl.querySelectorAll(".row[id]").forEach((row) => {
-    if (row.querySelector(".embed-twitter, .embed-instagram")) {
+    if (row.querySelector(".embed-twitter, .embed-instagram, .embed-youtube")) {
       const msgId = row.id.replace("msg-", "");
       const msg = messages.find((m) => m.id === msgId);
       if (msg && !msg.deleted && !msg.edited) {
@@ -543,6 +543,7 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
       const urlRegex = /(https?:\/\/[^\s]+|(?:www\.|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|dev|app|co|me|tv|gg|xyz|kr|jp))[^\s]*)/g;
       const twitterRegex = /^https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i;
       const instagramRegex = /^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[\w-]+/i;
+      const youtubeRegex = /^https?:\/\/(www\.)?(youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/shorts\/)[\w-]+/i;
 
       if (m.text.match(urlRegex)) {
         const urls = m.text.match(urlRegex);
@@ -554,6 +555,8 @@ function renderMessage(m, prev, next, isReply, parentMsg) {
             embedTwitter(fullUrl, bubble);
           } else if (instagramRegex.test(fullUrl)) {
             embedInstagram(fullUrl, bubble);
+          } else if (youtubeRegex.test(fullUrl)) {
+            embedYouTube(fullUrl, bubble);
           } else {
             fetchLinkPreview(fullUrl, bubble);
           }
