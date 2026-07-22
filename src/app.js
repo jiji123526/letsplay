@@ -328,8 +328,8 @@ function render() {
 
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
-    // only reveal when real messages are loaded (not just DMs)
-    if (allMessages.length > 0 || !isAdmin) {
+    // reveal when data is loaded (even if no messages exist)
+    if (allMessages.length > 0 || !isAdmin || galleryLoaded) {
       hasScrolledInitial = true;
       requestAnimationFrame(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -2112,10 +2112,10 @@ function startChat() {
     allMessages = [...byId.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     // filter out report messages for display
     if (!isAdmin) {
-      messages = list.filter((m) => !m.report);
+      messages = allMessages.filter((m) => !m.report);
     } else {
       // admin: merge DMs into message list sorted by time
-      const merged = [...list, ...dmMessages.map((d) => ({ ...d, dm: true }))];
+      const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       messages = merged;
     }
