@@ -77,6 +77,7 @@ if (isAdmin) {
 let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
+let dmLoaded = false;            // whether DM subscription has delivered first data
 let dmUnsub = null;
 let galleryItems = [];           // gallery photos
 let galleryUnsub = null;
@@ -328,8 +329,8 @@ function render() {
 
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
-    // reveal when data is loaded (even if no messages exist)
-    if (allMessages.length > 0 || !isAdmin || galleryLoaded) {
+    // reveal when all data is loaded
+    if ((allMessages.length > 0 || !isAdmin || galleryLoaded) && dmLoaded) {
       hasScrolledInitial = true;
       requestAnimationFrame(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -1762,9 +1763,11 @@ function subscribeCurrentDm() {
     dmUnsub = null;
   }
   dmMessages = [];
+  dmLoaded = !isAdmin; // non-admin doesn't need DMs, consider "loaded"
   if (!isAdmin) return;
   dmUnsub = subscribeDm((list) => {
     dmMessages = list;
+    dmLoaded = true;
     if (!initialLoad) {
       const merged = [...allMessages, ...dmMessages.map((d) => ({ ...d, dm: true }))];
       merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -2271,9 +2274,15 @@ function startChat() {
 
   // re-sync messages when tab becomes visible (handles stale WebSocket)
   let lastVisibilitySync = 0;
+  let lastActiveTime = Date.now();
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !IS_MOCK) {
       const now = Date.now();
+      // if tab was backgrounded for more than 5 minutes, full reload
+      if (now - lastActiveTime > 5 * 60 * 1000) {
+        window.location.reload();
+        return;
+      }
       if (now - lastVisibilitySync < 5000) return; // throttle: max once per 5s
       lastVisibilitySync = now;
       fetch(`/api/data?resource=messages&channel_id=${urlChannel}&limit=100`)
@@ -2292,6 +2301,8 @@ function startChat() {
           }
         })
         .catch(() => {});
+    } else if (document.visibilityState === "hidden") {
+      lastActiveTime = Date.now();
     }
   });
 }
