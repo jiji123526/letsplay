@@ -78,6 +78,7 @@ let messages = [];               // filtered list for rendering
 let allMessages = [];            // unfiltered list for lookups
 let dmMessages = [];             // DM messages (admin only)
 let dmLoaded = false;            // whether DM subscription has delivered first data
+let messagesLoaded = false;      // whether message subscription has delivered first data
 let dmUnsub = null;
 let galleryItems = [];           // gallery photos
 let galleryUnsub = null;
@@ -330,7 +331,7 @@ function render() {
   // only auto-scroll if user was already near the bottom
   if (!hasScrolledInitial) {
     // reveal when all data is loaded
-    if ((allMessages.length > 0 || !isAdmin || galleryLoaded) && dmLoaded) {
+    if (messagesLoaded && galleryLoaded && dmLoaded) {
       hasScrolledInitial = true;
       requestAnimationFrame(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -2101,6 +2102,7 @@ function startChat() {
       const newCount = list.length - allMessages.length;
       for (let i = 0; i < newCount; i++) incrementUnread();
     }
+    messagesLoaded = true;
     // merge with older messages (loaded via scroll-up) instead of replacing
     const byId = new Map(allMessages.map(m => [m.id, m]));
     list.forEach(m => byId.set(m.id, m));
