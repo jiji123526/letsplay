@@ -254,6 +254,24 @@ All writes go through Vercel serverless functions using the service role key. Th
 | Blocked data privacy | Non-admin users only see their own ban status (no full blocked list) |
 | Passcode storage | SHA-256 hashed, stored in DB — fallback to `config.js` |
 
+## Future: Cloudflare CDN
+
+When a custom domain is added, put Cloudflare in front of Vercel for:
+- **Edge caching** — static assets served from 300+ global data centers (~20ms vs ~200ms)
+- **Free analytics** — visitors, page views, countries (no tracking script needed)
+- **DDoS protection** — automatic, free tier covers most attacks
+- **No code changes** — only DNS points to Cloudflare, which forwards to Vercel
+
+Setup:
+1. Buy a custom domain (~$10/year .com, ~₩22,000/year .kr)
+2. Sign up at cloudflare.com (free)
+3. Add domain → Cloudflare gives new nameservers
+4. Update domain registrar's nameservers to Cloudflare's
+5. In Cloudflare DNS, add CNAME record pointing to `cname.vercel-dns.com`
+6. Enable proxy mode (orange cloud icon)
+
+Requires a custom domain — cannot proxy `*.vercel.app` subdomains.
+
 ## License
 
 Private project.
