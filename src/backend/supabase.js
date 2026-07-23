@@ -476,6 +476,11 @@ function formatMessage(row) {
   };
 }
 
+/** Normalize an array of raw DB rows (snake_case) into app message objects. */
+export function formatMessages(rows) {
+  return (rows || []).map(formatMessage);
+}
+
 export async function sendMessage({ uid, nick, text, is_admin, adminPasscode, replyTo, report, reportedMsgId, image, storedImage, dm, galleryId, imageW, imageH, fingerprint }) {
   const targetChannel = channelId;
   // upload image first if present (direct to storage)

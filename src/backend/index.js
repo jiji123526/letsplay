@@ -39,6 +39,7 @@ export const setNotice          = impl.setNotice;
 export const subscribeNotice    = impl.subscribeNotice;
 export const searchMessages     = impl.searchMessages || (async () => []);
 export const loadMoreMessages   = impl.loadMoreMessages || (async () => []);
+export const formatMessages     = impl.formatMessages || ((rows) => rows || []);
 export const setChannel         = impl.setChannel || (() => {});
 export const setAdminCredential = impl.setAdminCredential || (() => {});
 export const setClientFingerprint = impl.setClientFingerprint || (() => {});
